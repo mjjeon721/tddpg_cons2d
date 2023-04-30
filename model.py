@@ -90,29 +90,3 @@ class Actor(nn.Module) :
          ((state[:,0] > torch.sum(th_out[:,[0,2]],1)) * (state[:,0] < torch.sum(th_out[:,[1,3]],1))).view(-1,1) * nz_out
 
 
-class Threshold(nn.Module) :
-    def __init__(self, states_dim, action_dim, d_max, hidden1 = 400, hidden2 = 300, init_w = 3e-3):
-        super(Threshold, self).__init__()
-        self.fc1 = nn.Linear(states_dim, hidden1)
-        self.fc2 = nn.Linear(hidden1, hidden2)
-        self.fc3 = nn.Linear(hidden2, action_dim * 2)
-        self.relu = nn.ReLU()
-        self.d_max = d_max
-        self.sigmoid = nn.Sigmoid()
-        self.action_dim = action_dim
-        self.init_weights(init_w)
-
-    def init_weights(self, init_w):
-        self.fc1.weight.data = fanin_init(self.fc1.weight.data.size())
-        self.fc2.weight.data = fanin_init(self.fc2.weight.data.size())
-        self.fc3.weight.data.uniform_(-init_w, init_w)
-
-    def forward(self, state):
-        # Return threshold values,
-        out = self.fc1(state)
-        out = self.relu(out)
-        out = self.fc2(out)
-        out = self.relu(out)
-        out = self.fc3(out)
-        out = self.sigmoid(out).view(-1,self.action_dim * 2)
-        return torch.cat((torch.sort(out[:,:2], dim = 1)[0], torch.sort(out[:,2:], dim = 1)[0]), dim = 1)
