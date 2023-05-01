@@ -8,174 +8,14 @@ from scipy import io
 import matplotlib.pyplot as plt
 from scipy.stats import truncnorm
 from collections import OrderedDict
-from model import *
-from DDPG_model import *
 from utils import *
 import time
 import pickle
-np.random.seed(0)
+from Agent_D import *
+from Agent_T import *
+from Environment import *
 
 # Random prices but finite number of possible prices (Randomly sample from 100 possible prices)
-
-class DDPGAgent :
-    def __init__(self, state_dim, action_dim, actor_lr= 1e-4, critic_lr=1e-3, \
-                 eta=1, d_max = 1, tau=0.001, max_memory_size=50000):
-        # Parameters
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-
-        self.actor_lr = actor_lr
-
-        self.eta = eta
-        self.tau = tau
-
-        self.d_max = d_max
-
-        # Network object
-        self.actor = Actor_d(self.state_dim, self.action_dim, self.d_max)
-        self.actor_target = Actor_d(self.state_dim, self.action_dim, self.d_max)
-        self.critic = Critic_d(self.state_dim, self.action_dim)
-        self.critic_target = Critic_d(self.state_dim, self.action_dim)
-
-        # Target network initialization
-        hard_updates(self.critic_target, self.critic)
-        hard_updates(self.actor_target, self.actor)
-
-        # Training
-        self.memory = Memory(max_memory_size)
-        self.critic_criterion = nn.MSELoss()
-        self.actor_optim = optim.Adam(self.actor.parameters(), actor_lr)
-        self.critic_optim = optim.Adam(self.critic.parameters(), critic_lr)
-
-    def get_action(self, state):
-        state = Variable(torch.from_numpy(state).float())
-        action = self.actor.forward(state)
-        return action.detach().numpy()
-
-    def random_action(self):
-        return self.d_max * np.random.rand(2)
-
-    def update(self, batch_size, epoch):
-        #self.actor_optim.param_groups[0]['lr'] = 1e-4 * 1 / (1 + 0.1 * (epoch // 1000))
-        #self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
-        states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
-        states = torch.FloatTensor(np.vstack(states))
-        actions = torch.FloatTensor(np.vstack(actions))
-        rewards = torch.FloatTensor(np.vstack(rewards))
-        next_states = torch.FloatTensor(np.vstack(next_states))
-        dones = torch.Tensor(np.array(dones)).view(-1,1)
-
-        # Critic loss
-        Qvals = self.critic.forward(states, actions)
-        next_actions = self.actor_target.forward(next_states)
-        next_Q = self.critic_target.forward(next_states, next_actions)
-        Qprime = rewards + self.eta * next_Q
-        critic_loss = self.critic_criterion(Qvals, Qprime)
-
-        # Critic updates
-        self.critic_optim.zero_grad()
-        critic_loss.backward()
-        self.critic_optim.step()
-
-        policy_loss = - self.critic.forward(states, self.actor.forward(states)).mean()
-
-        self.actor_optim.zero_grad()
-        policy_loss.backward()
-        self.actor_optim.step()
-
-        soft_updates(self.critic_target, self.critic, self.tau)
-        soft_updates(self.actor_target, self.actor, self.tau)
-
-class TDDPGAgent:
-    def __init__(self, state_dim, action_dim, d_plus, d_minus, actor_lr = 1e-4, critic_lr=1e-3, \
-                 eta=1, d_max = 1, tau=0.001, max_memory_size = 50000):
-        # Parameters
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-
-        self.actor_lr = actor_lr
-
-        self.d_plus = d_plus
-        self.d_minus = d_minus
-
-        self.eta = eta
-        self.tau = tau
-
-        self.d_max = d_max
-
-        # Network object
-        self.actor = Actor(self.state_dim, self.action_dim, self.d_max, self.d_plus, self.d_minus)
-        self.actor_target = Actor(self.state_dim, self.action_dim, self.d_max, self.d_plus, self.d_minus)
-        self.critic = Critic(self.state_dim, self.action_dim)
-        self.critic_target = Critic(self.state_dim, self.action_dim)
-
-        # Target network initialization
-        hard_updates(self.critic_target, self.critic)
-        hard_updates(self.actor_target, self.actor)
-
-        # Relay Buffer
-        self.memory = Memory(max_memory_size)
-
-        # Training models
-        self.critic_criterion = nn.MSELoss()
-        self.actor_optim = optim.Adam(self.actor.parameters(), actor_lr)
-        self.critic_optim = optim.Adam(self.critic.parameters(), critic_lr)
-
-    def get_action(self, state):
-        state = Variable(torch.from_numpy(state).float())
-        action = torch.squeeze(self.actor.forward(state))
-        return action.detach().numpy()
-
-    def random_action(self):
-        return self.d_max * np.random.rand(self.action_dim)
-
-    def update(self, batch_size, epoch):
-        #self.actor_optim.param_groups[0]['lr'] = 1e-4 * 1 / (1 + 0.1 * (epoch // 1000))
-        #self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
-        states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
-        states = torch.FloatTensor(np.vstack(states))
-        actions = torch.FloatTensor(np.vstack(actions))
-        rewards = torch.FloatTensor(np.vstack(rewards))
-        next_states = torch.FloatTensor(np.vstack(next_states))
-        dones = torch.Tensor(np.array(dones)).view(-1,1)
-
-        Qvals = self.critic.forward(states, actions)
-        next_actions = self.actor_target.forward(next_states)
-
-        next_Q = self.critic_target.forward(next_states, next_actions)
-        Qprime = rewards + self.eta * next_Q
-        critic_loss = self.critic_criterion(Qvals, Qprime)
-
-        # Critic updates
-        self.critic_optim.zero_grad()
-        critic_loss.backward()
-        self.critic_optim.step()
-
-        # Policy updates
-        policy_loss = -self.critic.forward(states, self.actor.forward(states)).mean()
-        self.actor_optim.zero_grad()
-        policy_loss.backward()
-        self.actor_optim.step()
-
-        soft_updates(self.critic_target, self.critic, self.tau)
-        soft_updates(self.actor_target, self.actor, self.tau)
-class Env:
-    def __init__(self, util_param, renewable_param, reward_max):
-        self.a = util_param[0]
-        self.b = util_param[1]
-        self.renewable_param = np.array(renewable_param)
-        self.reward_max = reward_max
-
-    def get_next_state(self):
-        #r_next = np.random.uniform(0, 3, 1)#truncnorm.rvs(-self.renewable_param[0] / self.renewable_param[1], 100, size=1) * self.renewable_param[1] + self.renewable_param[0]
-        r_next = truncnorm.rvs(-self.renewable_param[0] / self.renewable_param[1], (self.renewable_param[2] - self.renewable_param[0]) / self.renewable_param[1], size=1) * self.renewable_param[1] + self.renewable_param[0]
-        return r_next
-
-    def get_reward(self, state, action):
-        net_consum = np.sum(action) - state[0]
-        reward = np.matmul(self.a, action) - 0.5 * np.matmul(self.b , action ** 2) - np.max(np.array((state[2], state[1])) * net_consum)
-        return reward / self.reward_max
-
 # x_t = r_t, pi_t
 # a_t = d_t (2-D Consumption)
 state_dim = 1 + 2
@@ -199,7 +39,7 @@ interaction = 0
 # Model parameters
 # NEM parameters
 
-NEM_param = 0.5 * np.sort(np.random.rand(600)).reshape(2,-1)
+NEM_param = 0.5 * np.sort(np.random.rand(200)).reshape(2,-1)
 
 a = np.array([3, 2.7]) / d_max
 b = np.array([1, 1])
@@ -257,12 +97,16 @@ for epoch in range(num_epoch) :
         ix_n_ddpg = np.random.randint(NEM_param.shape[1])
         ix_n_tddpg = np.random.randint(NEM_param.shape[1])
         ix_n_opt = np.random.randint(NEM_param.shape[1])
+
         new_state_ddpg = np.append(env.get_next_state(), [NEM_param[0,ix_n_ddpg], NEM_param[1,ix_n_ddpg]])
         new_state_tddpg = np.append(env.get_next_state(), [NEM_param[0, ix_n_tddpg], NEM_param[1, ix_n_tddpg], ix_n_tddpg])
         new_state_opt = np.append(env.get_next_state(), [NEM_param[0, ix_n_opt], NEM_param[1, ix_n_opt]])
+
         reward_tddpg = env.get_reward(state_tddpg, action_tddpg).reshape(1,)
         reward_ddpg = env.get_reward(state_ddpg, action_ddpg).reshape(1,)
+
         done = True if episode == epoch_size-1 else False
+
         if state_opt[0] < sum(opt_d_plus[:,ix_opt]) :
             action_opt = opt_d_plus[:,ix_opt]
         elif state_opt[0] > sum(opt_d_minus[:,ix_opt]) :
@@ -306,16 +150,18 @@ for epoch in range(num_epoch) :
         print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
         print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, DDPG_avg_reward : {2:.4f} Optimal_avg_reward : {3:.4f}'. format(epoch, TDDPG_avg_reward[-1], DDPG_avg_reward[-1], OPT_avg_reward[-1]))
         tic = time.perf_counter()
+
 '''
-smoothed_curve_ddpg = np.array([])
-smoothed_curve_tddpg = np.array([])
-smoothed_curve_opt = np.array([])
+nsmoothed_curve_ddpg = np.array([])
+nsmoothed_curve_tddpg = np.array([])
+nsmoothed_curve_opt = np.array([])
 for i in range(num_epoch) :
-    smoothed_curve_ddpg = np.append(smoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-10, 0):i+1]))
-    smoothed_curve_tddpg = np.append(smoothed_curve_tddpg, np.mean(TDDPG_avg_reward[np.maximum(i - 10, 0):i + 1]))
-    smoothed_curve_opt = np.append(smoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i - 10, 0):i + 1]))
-plt.plot(np.arange(0, 200000, 1000),smoothed_curve_tddpg, label = 'TDDPG')
-plt.plot(np.arange(0, 200000, 1000),smoothed_curve_ddpg, label = 'DDPG')
+    nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-100, 0):i+1]))
+    nsmoothed_curve_tddpg = np.append(nsmoothed_curve_tddpg, np.mean(TDDPG_avg_reward[np.maximum(i - 100, 0):i + 1]))
+    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i - 100, 0):i + 1]))
+plt.plot(np.arange(0, 200000, 1000),nsmoothed_curve_tddpg, label = 'TDDPG')
+plt.plot(np.arange(0, 200000, 1000),nsmoothed_curve_ddpg, label = 'DDPG')
+plt.plot(np.arange(0, 200000, 1000),nsmoothed_curve_opt, label = 'OPT')
 plt.legend()
 plt.xlabel('Step')
 plt.ylabel('Performance')

@@ -73,10 +73,12 @@ class Actor(nn.Module) :
         nz = self.fc2(nz)
         nz = self.relu(nz)
         nz = self.fc3(nz)
-        nz = self.sigmoid(nz).view(-1,self.action_dim)
+        #nz = self.sigmoid(nz).view(-1,self.action_dim)
+        nz = torch.exp(nz).view(-1, self.action_dim)
         nz_out = nz / torch.sum(nz, 1, keepdim=True) * state_n.view(-1,3)[:,0].view(-1,1)
 
         th_out = torch.cat((self.d_plus[:,ix].view(-1,2), self.d_minus[:,ix].view(-1,2)), dim = 1)
+
         return (state[:,0] < torch.sum(th_out[:,:2],1)).view(-1,1) * th_out[:,:2] + \
          (state[:,0] > torch.sum(th_out[:,2:],1)).view(-1,1) * th_out[:,2:] + \
          ((state[:,0] > torch.sum(th_out[:,:2],1)) * (state[:,0] < torch.sum(th_out[:,2:],1))).view(-1,1) * nz_out
