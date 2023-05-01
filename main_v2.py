@@ -87,7 +87,7 @@ class DDPGAgent :
         soft_updates(self.actor_target, self.actor, self.tau)
 
 class TDDPGAgent:
-    def __init__(self, state_dim, action_dim, actor_lr = 1e-4, critic_lr=1e-3, \
+    def __init__(self, state_dim, action_dim, d_plus, d_minus, actor_lr = 1e-4, critic_lr=1e-3, \
                  eta=1, d_max = 1, tau=0.001, max_memory_size = 50000):
         # Parameters
         self.state_dim = state_dim
@@ -95,14 +95,17 @@ class TDDPGAgent:
 
         self.actor_lr = actor_lr
 
+        self.d_plus = d_plus
+        self.d_minus = d_minus
+
         self.eta = eta
         self.tau = tau
 
         self.d_max = d_max
 
         # Network object
-        self.actor = Actor(self.state_dim, self.action_dim, self.d_max)
-        self.actor_target = Actor(self.state_dim, self.action_dim, self.d_max)
+        self.actor = Actor(self.state_dim, self.action_dim, self.d_max, self.d_plus, self.d_minus)
+        self.actor_target = Actor(self.state_dim, self.action_dim, self.d_max, self.d_plus, self.d_minus)
         self.critic = Critic(self.state_dim, self.action_dim)
         self.critic_target = Critic(self.state_dim, self.action_dim)
 
@@ -181,17 +184,14 @@ action_dim = 2
 # Action constraint parameters
 d_max = 3
 
-agent_tddpg = TDDPGAgent(state_dim, action_dim)
-agent_ddpg = DDPGAgent(state_dim, action_dim)
-
 # Batch sample size
 batch_size = 100
 
 T = 10
 # Renewable parameters
-r_mean = 2 / d_max
-r_std = 3 / d_max
-r_max = 4.5 / d_max
+r_mean = 2.5 / d_max
+r_std = 10 / d_max
+r_max = 7.5 / d_max
 
 # Number of interaction with environment
 interaction = 0
@@ -210,6 +210,8 @@ opt_action_2 = a[1] - NEM_param
 opt_d_plus = np.array([opt_action_1[1,:], opt_action_2[1,:]])
 opt_d_minus = np.array([opt_action_1[0,:], opt_action_2[0,:]])
 reward_max = max(np.sum(a.reshape(2,1) * opt_d_minus - 0.5 * opt_d_minus **2, axis = 0) - NEM_param[0,:] * (np.sum(opt_d_minus, axis = 0) - r_max))
+agent_tddpg = TDDPGAgent(state_dim, action_dim, opt_d_plus, opt_d_minus)
+agent_ddpg = DDPGAgent(state_dim, action_dim)
 
 env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 
@@ -240,7 +242,7 @@ for epoch in range(num_epoch) :
         ix_tddpg = np.random.randint(NEM_param.shape[1])
         ix_opt = np.random.randint(NEM_param.shape[1])
         state_ddpg = np.array([r_0_samples_ddpg[episode], NEM_param[0,ix_ddpg], NEM_param[1,ix_ddpg]])
-        state_tddpg = np.array([r_0_samples_tddpg[episode], NEM_param[0, ix_tddpg], NEM_param[1, ix_tddpg]])
+        state_tddpg = np.array([r_0_samples_tddpg[episode], NEM_param[0, ix_tddpg], NEM_param[1, ix_tddpg], ix_tddpg])
         state_opt = np.array([r_0_samples_opt[episode], NEM_param[0, ix_opt], NEM_param[1, ix_opt]])
 
         if interaction <= 10000 :
@@ -248,15 +250,15 @@ for epoch in range(num_epoch) :
             action_ddpg = agent_ddpg.random_action()
         else:
             explr_noise_std = 0.1
-            action_tddpg = np.clip(agent_tddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
-            action_ddpg = np.clip(agent_ddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
+            action_tddpg = np.clip(agent_tddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
+            action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
 
         # Observing next state and rewards
         ix_n_ddpg = np.random.randint(NEM_param.shape[1])
         ix_n_tddpg = np.random.randint(NEM_param.shape[1])
         ix_n_opt = np.random.randint(NEM_param.shape[1])
         new_state_ddpg = np.append(env.get_next_state(), [NEM_param[0,ix_n_ddpg], NEM_param[1,ix_n_ddpg]])
-        new_state_tddpg = np.append(env.get_next_state(), [NEM_param[0, ix_n_tddpg], NEM_param[1, ix_n_tddpg]])
+        new_state_tddpg = np.append(env.get_next_state(), [NEM_param[0, ix_n_tddpg], NEM_param[1, ix_n_tddpg], ix_n_tddpg])
         new_state_opt = np.append(env.get_next_state(), [NEM_param[0, ix_n_opt], NEM_param[1, ix_n_opt]])
         reward_tddpg = env.get_reward(state_tddpg, action_tddpg).reshape(1,)
         reward_ddpg = env.get_reward(state_ddpg, action_ddpg).reshape(1,)
@@ -314,7 +316,6 @@ for i in range(num_epoch) :
     smoothed_curve_opt = np.append(smoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i - 10, 0):i + 1]))
 plt.plot(np.arange(0, 200000, 1000),smoothed_curve_tddpg, label = 'TDDPG')
 plt.plot(np.arange(0, 200000, 1000),smoothed_curve_ddpg, label = 'DDPG')
-plt.plot(np.arange(0, 200000, 1000),smoothed_curve_opt, label = 'Optimal')
 plt.legend()
 plt.xlabel('Step')
 plt.ylabel('Performance')
