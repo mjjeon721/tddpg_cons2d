@@ -44,43 +44,70 @@ class Critic(nn.Module) :
         return out
 
 # Actor network class
-class Actor(nn.Module) :
-    def __init__(self,states_dim, action_dim, d_max, d_plus, d_minus, hidden1 = 128, hidden2 = 64, init_w = 3e-3):
+class Actor:
+    def __init__(self,states_dim, action_dim, d_max, hidden1 = 128, hidden2 = 64, init_w = 3e-3):
         # State : Price & Renewable generation
-        super(Actor, self).__init__()
-        self.fc1 = nn.Linear(states_dim, hidden1)
-        self.fc2 = nn.Linear(hidden1, hidden2)
-        self.fc3 = nn.Linear(hidden2, action_dim)
-        self.relu = nn.ReLU()
         self.d_max = d_max
-        self.d_plus = torch.Tensor(d_plus)
-        self.d_minus = torch.Tensor(d_minus)
         self.action_dim = action_dim
-        self.sigmoid = nn.Sigmoid()
-        self.init_weights(init_w)
-
-    def init_weights(self, init_w):
-        self.fc1.weight.data = fanin_init(self.fc1.weight.data.size())
-        self.fc2.weight.data = fanin_init(self.fc2.weight.data.size())
-        self.fc3.weight.data.uniform_(-init_w, init_w)
+        # threshold initialization
+        self.d_plus, self.d_minus = self.d_max * np.sort(np.random.rand(4)).reshape(2,-1)
+        self.d_plus = self.d_plus.reshape(1, self.action_dim)
+        self.d_minus = self.d_minus.reshape(1, self.action_dim)
 
     def forward(self, state):
-        state = state.view(-1,4)
-        state_n = state[:,:3]
-        ix = state[:,3].detach().numpy().astype(int)
-        nz = self.fc1(state_n)
-        nz = self.relu(nz)
-        nz = self.fc2(nz)
-        nz = self.relu(nz)
-        nz = self.fc3(nz)
-        #nz = self.sigmoid(nz).view(-1,self.action_dim)
-        nz = torch.exp(nz).view(-1, self.action_dim)
-        nz_out = nz / torch.sum(nz, 1, keepdim=True) * state_n.view(-1,3)[:,0].view(-1,1)
+        state_np = state.detach().numpy()
+        state_np = state_np.reshape(-1, 3)
 
-        th_out = torch.cat((self.d_plus[:,ix].view(-1,2), self.d_minus[:,ix].view(-1,2)), dim = 1)
+        nz_actions = self.d_plus + (state_np[:,0] - np.sum(self.d_plus)).reshape(-1,1) * (self.d_minus - self.d_plus) / \
+                     (np.sum(self.d_minus) - np.sum(self.d_plus))
+        actions = (state_np[:,0] < np.sum(self.d_plus)).reshape(-1,1) * self.d_plus\
+                  + (state_np[:,0] > np.sum(self.d_minus)).reshape(-1,1) * self.d_minus \
+                  + ((state_np[:, 0] > np.sum(self.d_plus)) * (state_np[:,0] < np.sum(self.d_minus))).reshape(-1,1) * nz_actions
 
-        return (state[:,0] < torch.sum(th_out[:,:2],1)).view(-1,1) * th_out[:,:2] + \
-         (state[:,0] > torch.sum(th_out[:,2:],1)).view(-1,1) * th_out[:,2:] + \
-         ((state[:,0] > torch.sum(th_out[:,:2],1)) * (state[:,0] < torch.sum(th_out[:,2:],1))).view(-1,1) * nz_out
+        return torch.FloatTensor(actions)
 
+    def policy_grad(self, state):
+        state_np = state.detach().numpy()
+        m = state_np.shape[0]
+        J_plus = np.empty((0,self.action_dim))
+        J_minus = np.empty((0, self.action_dim))
+        for g_t in state_np[:,0] :
+            if g_t < np.sum(self.d_plus) :
+                J_plus = np.vstack((J_plus, np.eye(self.action_dim)))
+                J_minus = np.vstack((J_minus, np.zeros((self.action_dim, self.action_dim))))
+            elif g_t > np.sum(self.d_minus) :
+                J_plus = np.vstack((J_plus, np.zeros((self.action_dim, self.action_dim))))
+                J_minus = np.vstack((J_minus, np.eye(self.action_dim)))
+            else :
+                A = np.zeros((self.action_dim, self.action_dim))
+                B = np.zeros((self.action_dim, self.action_dim))
+                nab_ii = 1 - (self.d_minus - self.d_plus) / (np.sum(self.d_minus) - np.sum(self.d_plus)) \
+                + (g_t - np.sum(self.d_plus)) * (self.d_minus - self.d_plus + np.sum(self.d_plus) - np.sum(self.d_minus)) \
+                / (np.sum(self.d_plus) - np.sum(self.d_minus)) ** 2
+                nab_ii_m = (g_t - np.sum(self.d_plus)) * (-self.d_minus + self.d_plus - np.sum(self.d_plus) + np.sum(self.d_minus)) \
+                         / (np.sum(self.d_plus) - np.sum(self.d_minus)) ** 2
+                nab_ii = nab_ii.reshape(-1)
+                nab_ii_m = nab_ii_m.reshape(-1)
+                A = A + np.diag(nab_ii)
+                B = B + np.diag(nab_ii_m)
+                nab_ij = - (self.d_minus - self.d_plus) / (np.sum(self.d_minus) - np.sum(self.d_plus)) \
+                        + (g_t - np.sum(self.d_plus)) * (self.d_minus - self.d_plus) / (np.sum(self.d_plus) - np.sum(self.d_minus)) ** 2
+                nab_ij_m = (g_t - np.sum(self.d_plus)) * (-self.d_minus + self.d_plus) / (np.sum(self.d_plus) - np.sum(self.d_minus)) ** 2
+                nab_ij = nab_ij.reshape(-1)
+                nab_ij_m = nab_ij_m.reshape(-1)
+                A = A + np.fliplr(np.diag(nab_ij))
+                B = B + np.fliplr(np.diag(nab_ij_m))
+                J_plus = np.vstack((J_plus, A))
+                J_minus = np.vstack((J_minus, B))
+        diag_matrix_plus = np.zeros((self.action_dim * m, self.action_dim * m))
+        diag_matrix_minus= np.zeros((self.action_dim * m, self.action_dim * m))
+        for i in range(m) :
+            block_start = i * self.action_dim
+            block_end = (i+1) * self.action_dim
+            block = J_plus[i * self.action_dim:(i+1) * self.action_dim,:]
+            block_m = J_minus[i * self.action_dim:(i+1) * self.action_dim,:]
+            diag_matrix_plus[block_start:block_end, block_start:block_end] = block
+            diag_matrix_minus[block_start:block_end, block_start:block_end] = block
+
+        return diag_matrix_plus, diag_matrix_minus
 

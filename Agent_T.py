@@ -3,16 +3,13 @@ from utils import *
 import torch.optim as optim
 
 class TDDPGAgent:
-    def __init__(self, state_dim, action_dim, d_plus, d_minus, actor_lr = 1e-4, critic_lr=1e-3, \
-                 eta=1, d_max = 1, tau=0.001, max_memory_size = 50000):
+    def __init__(self, state_dim, action_dim, actor_lr = 0.01, critic_lr=0.001, \
+                 eta=1, d_max = 1, tau=0.001, max_memory_size = 10000):
         # Parameters
         self.state_dim = state_dim
         self.action_dim = action_dim
 
         self.actor_lr = actor_lr
-
-        self.d_plus = d_plus
-        self.d_minus = d_minus
 
         self.eta = eta
         self.tau = tau
@@ -20,22 +17,20 @@ class TDDPGAgent:
         self.d_max = d_max
 
         # Network object
-        self.actor = Actor(self.state_dim, self.action_dim, self.d_max, self.d_plus, self.d_minus)
-        self.actor_target = Actor(self.state_dim, self.action_dim, self.d_max, self.d_plus, self.d_minus)
+        self.actor = Actor(self.state_dim, self.action_dim, self.d_max)
         self.critic = Critic(self.state_dim, self.action_dim)
         self.critic_target = Critic(self.state_dim, self.action_dim)
 
         # Target network initialization
         hard_updates(self.critic_target, self.critic)
-        hard_updates(self.actor_target, self.actor)
 
         # Relay Buffer
         self.memory = Memory(max_memory_size)
 
         # Training models
         self.critic_criterion = nn.MSELoss()
-        self.actor_optim = optim.Adam(self.actor.parameters(), actor_lr)
         self.critic_optim = optim.Adam(self.critic.parameters(), critic_lr)
+
 
     def get_action(self, state):
         state = Variable(torch.from_numpy(state).float())
@@ -46,7 +41,7 @@ class TDDPGAgent:
         return self.d_max * np.random.rand(self.action_dim)
 
     def update(self, batch_size, epoch):
-        #self.actor_optim.param_groups[0]['lr'] = 1e-4 * 1 / (1 + 0.1 * (epoch // 1000))
+        self.actor_lr = 0.01 * 1 / (1 + 0.1 * (epoch // 1000))
         #self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
         states = torch.FloatTensor(np.vstack(states))
@@ -56,7 +51,7 @@ class TDDPGAgent:
         dones = torch.Tensor(np.array(dones)).view(-1,1)
 
         Qvals = self.critic.forward(states, actions)
-        next_actions = self.actor_target.forward(next_states)
+        next_actions = self.actor.forward(next_states)
 
         next_Q = self.critic_target.forward(next_states, next_actions)
         Qprime = rewards + self.eta * next_Q
@@ -68,10 +63,13 @@ class TDDPGAgent:
         self.critic_optim.step()
 
         # Policy updates
-        policy_loss = -self.critic.forward(states, self.actor.forward(states)).mean()
-        self.actor_optim.zero_grad()
-        policy_loss.backward()
-        self.actor_optim.step()
+        current_pol_actions = Variable(self.actor.forward(states), requires_grad = True)
+        self.critic_optim.zero_grad()
+        policy_loss = -self.critic.forward(states, current_pol_actions).mean()
 
+        policy_loss.backward()
+        J_plus, J_minus = self.actor.policy_grad(states)
+        Q_grad = current_pol_actions.grad.view(1,-1).detach().numpy()
+        self.actor.d_plus = np.clip(self.actor.d_plus - self.actor_lr * np.sum(np.matmul(Q_grad, J_plus).reshape(-1,2), axis = 0), 0, self.d_max)
+        self.actor.d_minus = np.clip(self.actor.d_minus - self.actor_lr * np.sum(np.matmul(Q_grad, J_minus).reshape(-1, 2), axis=0), self.actor.d_plus, self.d_max)
         soft_updates(self.critic_target, self.critic, self.tau)
-        soft_updates(self.actor_target, self.actor, self.tau)

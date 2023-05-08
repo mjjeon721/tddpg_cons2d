@@ -4,7 +4,7 @@ import torch.optim as optim
 
 class DDPGAgent :
     def __init__(self, state_dim, action_dim, actor_lr= 1e-4, critic_lr=1e-3, \
-                 eta=1, d_max = 1, tau=0.001, max_memory_size=50000):
+                 eta=1, d_max = 1, tau=0.001, max_memory_size=10000):
         # Parameters
         self.state_dim = state_dim
         self.action_dim = action_dim

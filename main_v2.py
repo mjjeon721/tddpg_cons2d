@@ -29,8 +29,8 @@ batch_size = 100
 
 T = 10
 # Renewable parameters
-r_mean = 2.5 / d_max
-r_std = 10 / d_max
+r_mean = 2 / d_max
+r_std = 9 / d_max
 r_max = 7.5 / d_max
 
 # Number of interaction with environment
@@ -39,7 +39,8 @@ interaction = 0
 # Model parameters
 # NEM parameters
 
-NEM_param = 0.5 * np.sort(np.random.rand(200)).reshape(2,-1)
+NEM_param = np.array([[0.27], [0.47]])
+    #0.5 * np.sort(np.random.rand(200)).reshape(2,-1)
 
 a = np.array([3, 2.7]) / d_max
 b = np.array([1, 1])
@@ -50,15 +51,16 @@ opt_action_2 = a[1] - NEM_param
 opt_d_plus = np.array([opt_action_1[1,:], opt_action_2[1,:]])
 opt_d_minus = np.array([opt_action_1[0,:], opt_action_2[0,:]])
 reward_max = max(np.sum(a.reshape(2,1) * opt_d_minus - 0.5 * opt_d_minus **2, axis = 0) - NEM_param[0,:] * (np.sum(opt_d_minus, axis = 0) - r_max))
-agent_tddpg = TDDPGAgent(state_dim, action_dim, opt_d_plus, opt_d_minus)
+
+agent_tddpg = TDDPGAgent(state_dim, action_dim)
 agent_ddpg = DDPGAgent(state_dim, action_dim)
 
 env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 
 tic = time.perf_counter()
 
-epoch_size = 1000
-num_epoch = 200
+epoch_size = 100
+num_epoch = 500
 update_count = 0
 
 DDPG_reward = []
@@ -70,28 +72,28 @@ TDDPG_avg_reward = []
 OPT_reward = []
 OPT_avg_reward = []
 
+d_plus_history = []
+d_minus_history = []
+
+r_0_samples_ddpg = truncnorm.rvs(-r_mean/ r_std, (r_max - r_mean)/r_std, size=num_epoch) * r_std + r_mean
+r_0_samples_opt = truncnorm.rvs(-r_mean / r_std, (r_max - r_mean) / r_std, size=num_epoch) * r_std + r_mean
+r_0_samples_tddpg = truncnorm.rvs(-r_mean / r_std, (r_max - r_mean) / r_std, size=num_epoch) * r_std + r_mean
+
+ix_ddpg = 0#np.random.randint(NEM_param.shape[1])
+ix_tddpg = 0#np.random.randint(NEM_param.shape[1])
+ix_opt = 0#np.random.randint(NEM_param.shape[1])
+
 for epoch in range(num_epoch) :
     epoch_reward_DDPG = 0
     epoch_reward_TDDPG = 0
     epoch_reward_OPT = 0
-    r_0_samples_ddpg = truncnorm.rvs(-r_mean/ r_std, (r_max - r_mean)/r_std, size=epoch_size) * r_std + r_mean
-    r_0_samples_opt = truncnorm.rvs(-r_mean / r_std, (r_max - r_mean) / r_std, size=epoch_size) * r_std + r_mean
-    r_0_samples_tddpg = truncnorm.rvs(-r_mean / r_std, (r_max - r_mean) / r_std, size=epoch_size) * r_std + r_mean
+    state_ddpg = np.array([r_0_samples_ddpg[epoch], NEM_param[0, ix_ddpg], NEM_param[1, ix_ddpg]])
+    state_tddpg = np.array([r_0_samples_tddpg[epoch], NEM_param[0, ix_tddpg], NEM_param[1, ix_tddpg]])
+    state_opt = np.array([r_0_samples_opt[epoch], NEM_param[0, ix_opt], NEM_param[1, ix_opt]])
     for episode in range(epoch_size):
-        ix_ddpg = np.random.randint(NEM_param.shape[1])
-        ix_tddpg = np.random.randint(NEM_param.shape[1])
-        ix_opt = np.random.randint(NEM_param.shape[1])
-        state_ddpg = np.array([r_0_samples_ddpg[episode], NEM_param[0,ix_ddpg], NEM_param[1,ix_ddpg]])
-        state_tddpg = np.array([r_0_samples_tddpg[episode], NEM_param[0, ix_tddpg], NEM_param[1, ix_tddpg], ix_tddpg])
-        state_opt = np.array([r_0_samples_opt[episode], NEM_param[0, ix_opt], NEM_param[1, ix_opt]])
-
-        if interaction <= 10000 :
-            action_tddpg = agent_tddpg.random_action()
-            action_ddpg = agent_ddpg.random_action()
-        else:
-            explr_noise_std = 0.1
-            action_tddpg = np.clip(agent_tddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
-            action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
+        explr_noise_std = 0.1
+        action_tddpg = np.clip(agent_tddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
+        action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
 
         # Observing next state and rewards
         ix_n_ddpg = np.random.randint(NEM_param.shape[1])
@@ -99,7 +101,7 @@ for epoch in range(num_epoch) :
         ix_n_opt = np.random.randint(NEM_param.shape[1])
 
         new_state_ddpg = np.append(env.get_next_state(), [NEM_param[0,ix_n_ddpg], NEM_param[1,ix_n_ddpg]])
-        new_state_tddpg = np.append(env.get_next_state(), [NEM_param[0, ix_n_tddpg], NEM_param[1, ix_n_tddpg], ix_n_tddpg])
+        new_state_tddpg = np.append(env.get_next_state(), [NEM_param[0, ix_n_tddpg], NEM_param[1, ix_n_tddpg]])
         new_state_opt = np.append(env.get_next_state(), [NEM_param[0, ix_n_opt], NEM_param[1, ix_n_opt]])
 
         reward_tddpg = env.get_reward(state_tddpg, action_tddpg).reshape(1,)
@@ -135,6 +137,8 @@ for epoch in range(num_epoch) :
                 agent_tddpg.update(batch_size, update_count)
                 agent_ddpg.update(batch_size, update_count)
             update_count += 1
+            d_plus_history.append(agent_tddpg.actor.d_plus)
+            d_minus_history.append(agent_tddpg.actor.d_minus)
     DDPG_reward.append(epoch_reward_DDPG)
     DDPG_avg_reward.append(np.mean(DDPG_reward[-100:]))
     TDDPG_reward.append(epoch_reward_TDDPG)
@@ -145,13 +149,43 @@ for epoch in range(num_epoch) :
     # End of epoch, policy evaluation phase
     # Number of episodes : 100
     # Number of seeds : 1
-    if epoch % 20 == 19 :
+    if epoch % 50 == 49 :
         toc = time.perf_counter()
         print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
         print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, DDPG_avg_reward : {2:.4f} Optimal_avg_reward : {3:.4f}'. format(epoch, TDDPG_avg_reward[-1], DDPG_avg_reward[-1], OPT_avg_reward[-1]))
         tic = time.perf_counter()
 
+d_minus_history = np.vstack(d_minus_history)
+d_plus_history = np.vstack(d_plus_history)
 '''
+plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
+plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^-$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 49000, 20),d_minus_history[:,1])
+plt.plot(np.arange(0, 49000, 20),opt_d_minus[1] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^-$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 49000, 20),d_plus_history[:,0])
+plt.plot(np.arange(0, 49000, 20),opt_d_plus[0] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^+$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 49000, 20),d_plus_history[:,1])
+plt.plot(np.arange(0, 49000, 20),opt_d_plus[1] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^+$')
+plt.grid()
+plt.show()
+
 nsmoothed_curve_ddpg = np.array([])
 nsmoothed_curve_tddpg = np.array([])
 nsmoothed_curve_opt = np.array([])
@@ -159,9 +193,9 @@ for i in range(num_epoch) :
     nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-100, 0):i+1]))
     nsmoothed_curve_tddpg = np.append(nsmoothed_curve_tddpg, np.mean(TDDPG_avg_reward[np.maximum(i - 100, 0):i + 1]))
     nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i - 100, 0):i + 1]))
-plt.plot(np.arange(0, 200000, 1000),nsmoothed_curve_tddpg, label = 'TDDPG')
-plt.plot(np.arange(0, 200000, 1000),nsmoothed_curve_ddpg, label = 'DDPG')
-plt.plot(np.arange(0, 200000, 1000),nsmoothed_curve_opt, label = 'OPT')
+plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_tddpg, label = 'TDDPG')
+plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_ddpg, label = 'DDPG')
+plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_opt, label = 'OPT')
 plt.legend()
 plt.xlabel('Step')
 plt.ylabel('Performance')
