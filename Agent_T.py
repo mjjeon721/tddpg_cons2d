@@ -3,7 +3,7 @@ from utils import *
 import torch.optim as optim
 
 class TDDPGAgent:
-    def __init__(self, state_dim, action_dim, actor_lr = 0.01, critic_lr=0.001, \
+    def __init__(self, state_dim, action_dim, actor_lr = 0.001, critic_lr=0.001, \
                  eta=1, d_max = 1, tau=0.001, max_memory_size = 10000):
         # Parameters
         self.state_dim = state_dim
@@ -31,6 +31,8 @@ class TDDPGAgent:
         self.critic_criterion = nn.MSELoss()
         self.critic_optim = optim.Adam(self.critic.parameters(), critic_lr)
 
+        self.actor_optim = AdamOptim(self.actor_lr)
+
 
     def get_action(self, state):
         state = Variable(torch.from_numpy(state).float())
@@ -40,8 +42,8 @@ class TDDPGAgent:
     def random_action(self):
         return self.d_max * np.random.rand(self.action_dim)
 
-    def update(self, batch_size, epoch):
-        self.actor_lr = 0.01 * 1 / (1 + 0.1 * (epoch // 1000))
+    def update(self, batch_size, update_count):
+        self.actor_optim.lr = 0.001 * 1 / (1 + 0.1 * (update_count // 5000))
         #self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
         states = torch.FloatTensor(np.vstack(states))
@@ -70,6 +72,10 @@ class TDDPGAgent:
         policy_loss.backward()
         J_plus, J_minus = self.actor.policy_grad(states)
         Q_grad = current_pol_actions.grad.view(1,-1).detach().numpy()
-        self.actor.d_plus = np.clip(self.actor.d_plus - self.actor_lr * np.sum(np.matmul(Q_grad, J_plus).reshape(-1,2), axis = 0), 0, self.d_max)
-        self.actor.d_minus = np.clip(self.actor.d_minus - self.actor_lr * np.sum(np.matmul(Q_grad, J_minus).reshape(-1, 2), axis=0), self.actor.d_plus, self.d_max)
+        d_plus_grad = np.sum(np.matmul(Q_grad, J_plus).reshape(-1,2), axis = 0)
+        d_minus_grad = np.sum(np.matmul(Q_grad, J_minus).reshape(-1,2), axis = 0)
+        self.actor.d_plus = np.clip(self.actor_optim.update(update_count, self.actor.d_plus, d_plus_grad), 0, self.d_max)
+        self.actor.d_minus = np.clip(self.actor_optim.update(update_count, self.actor.d_minus, d_minus_grad), self.actor.d_plus, self.d_max)
+        #self.actor.d_plus = np.clip(self.actor.d_plus - self.actor_lr * np.sum(np.matmul(Q_grad, J_plus).reshape(-1,2), axis = 0), 0, self.d_max)
+        #self.actor.d_minus = np.clip(self.actor.d_minus - self.actor_lr * np.sum(np.matmul(Q_grad, J_minus).reshape(-1, 2), axis=0), self.actor.d_plus, self.d_max)
         soft_updates(self.critic_target, self.critic, self.tau)

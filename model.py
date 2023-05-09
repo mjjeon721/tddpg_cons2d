@@ -45,7 +45,7 @@ class Critic(nn.Module) :
 
 # Actor network class
 class Actor:
-    def __init__(self,states_dim, action_dim, d_max, hidden1 = 128, hidden2 = 64, init_w = 3e-3):
+    def __init__(self,states_dim, action_dim, d_max):
         # State : Price & Renewable generation
         self.d_max = d_max
         self.action_dim = action_dim
@@ -107,7 +107,7 @@ class Actor:
             block = J_plus[i * self.action_dim:(i+1) * self.action_dim,:]
             block_m = J_minus[i * self.action_dim:(i+1) * self.action_dim,:]
             diag_matrix_plus[block_start:block_end, block_start:block_end] = block
-            diag_matrix_minus[block_start:block_end, block_start:block_end] = block
+            diag_matrix_minus[block_start:block_end, block_start:block_end] = block_m
 
         return diag_matrix_plus, diag_matrix_minus
 

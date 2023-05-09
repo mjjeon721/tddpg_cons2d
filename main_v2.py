@@ -60,8 +60,8 @@ env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 tic = time.perf_counter()
 
 epoch_size = 100
-num_epoch = 500
-update_count = 0
+num_epoch = 700
+update_count = 1
 
 DDPG_reward = []
 DDPG_avg_reward = []
@@ -91,7 +91,7 @@ for epoch in range(num_epoch) :
     state_tddpg = np.array([r_0_samples_tddpg[epoch], NEM_param[0, ix_tddpg], NEM_param[1, ix_tddpg]])
     state_opt = np.array([r_0_samples_opt[epoch], NEM_param[0, ix_opt], NEM_param[1, ix_opt]])
     for episode in range(epoch_size):
-        explr_noise_std = 0.1
+        explr_noise_std = 0.1 #* 1 / (1 + 0.1 * (interaction // 10000))
         action_tddpg = np.clip(agent_tddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
         action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
 
@@ -125,6 +125,7 @@ for epoch in range(num_epoch) :
         agent_tddpg.memory.push(state_tddpg, action_tddpg, reward_tddpg, new_state_tddpg, done)
         agent_ddpg.memory.push(state_ddpg, action_ddpg, reward_ddpg, new_state_ddpg, done)
         interaction+=1
+
         state_ddpg = new_state_ddpg
         state_tddpg = new_state_tddpg
         state_opt = new_state_opt
@@ -136,7 +137,7 @@ for epoch in range(num_epoch) :
             for grad_update in range(20):
                 agent_tddpg.update(batch_size, update_count)
                 agent_ddpg.update(batch_size, update_count)
-            update_count += 1
+                update_count += 1
             d_plus_history.append(agent_tddpg.actor.d_plus)
             d_minus_history.append(agent_tddpg.actor.d_minus)
     DDPG_reward.append(epoch_reward_DDPG)
@@ -158,29 +159,29 @@ for epoch in range(num_epoch) :
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
 '''
-plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
-plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))
+plt.plot(np.arange(0, 69000, 20),d_minus_history[:,0])
+plt.plot(np.arange(0, 69000, 20),opt_d_minus[0] * np.ones(3450))
 plt.xlabel('Interactions')
 plt.ylabel('$d_1^-$')
 plt.grid()
 plt.show()
 
-plt.plot(np.arange(0, 49000, 20),d_minus_history[:,1])
-plt.plot(np.arange(0, 49000, 20),opt_d_minus[1] * np.ones(2450))
+plt.plot(np.arange(0, 69000, 20),d_minus_history[:,1])
+plt.plot(np.arange(0, 69000, 20),opt_d_minus[1] * np.ones(3450))
 plt.xlabel('Interactions')
 plt.ylabel('$d_2^-$')
 plt.grid()
 plt.show()
 
-plt.plot(np.arange(0, 49000, 20),d_plus_history[:,0])
-plt.plot(np.arange(0, 49000, 20),opt_d_plus[0] * np.ones(2450))
+plt.plot(np.arange(0, 69000, 20),d_plus_history[:,0])
+plt.plot(np.arange(0, 69000, 20),opt_d_plus[0] * np.ones(3450))
 plt.xlabel('Interactions')
 plt.ylabel('$d_1^+$')
 plt.grid()
 plt.show()
 
-plt.plot(np.arange(0, 49000, 20),d_plus_history[:,1])
-plt.plot(np.arange(0, 49000, 20),opt_d_plus[1] * np.ones(2450))
+plt.plot(np.arange(0, 69000, 20),d_plus_history[:,1])
+plt.plot(np.arange(0, 69000, 20),opt_d_plus[1] * np.ones(3450))
 plt.xlabel('Interactions')
 plt.ylabel('$d_2^+$')
 plt.grid()
@@ -190,22 +191,22 @@ nsmoothed_curve_ddpg = np.array([])
 nsmoothed_curve_tddpg = np.array([])
 nsmoothed_curve_opt = np.array([])
 for i in range(num_epoch) :
-    nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-100, 0):i+1]))
-    nsmoothed_curve_tddpg = np.append(nsmoothed_curve_tddpg, np.mean(TDDPG_avg_reward[np.maximum(i - 100, 0):i + 1]))
-    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i - 100, 0):i + 1]))
-plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_tddpg, label = 'TDDPG')
-plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_ddpg, label = 'DDPG')
-plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_opt, label = 'OPT')
+    nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-10, 0):i+1]))
+    nsmoothed_curve_tddpg = np.append(nsmoothed_curve_tddpg, np.mean(TDDPG_avg_reward[np.maximum(i -10, 0):i + 1]))
+    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i-00, 0):i + 1]))
+plt.plot(np.arange(0, 70000, 100),nsmoothed_curve_tddpg, label = 'TDDPG')
+plt.plot(np.arange(0, 70000, 100),nsmoothed_curve_ddpg, label = 'DDPG')
+plt.plot(np.arange(0, 70000, 100),nsmoothed_curve_opt, label = 'OPT')
 plt.legend()
 plt.xlabel('Step')
 plt.ylabel('Performance')
 plt.grid()
 plt.show()
 
-regret_TDDPG = (smoothed_curve_opt - smoothed_curve_tddpg) / smoothed_curve_opt * 100
-regret_DDPG = (smoothed_curve_opt - smoothed_curve_ddpg) / smoothed_curve_opt * 100
-plt.plot(np.arange(0, 200000, 1000),regret_TDDPG, label = 'TDDPG')
-plt.plot(np.arange(0, 200000, 1000),regret_DDPG, label = 'DDPG')
+regret_TDDPG = (nsmoothed_curve_opt - nsmoothed_curve_tddpg) / nsmoothed_curve_opt * 100
+regret_DDPG = (nsmoothed_curve_opt - nsmoothed_curve_ddpg) / nsmoothed_curve_opt * 100
+plt.plot(np.arange(0, 70000, 100),regret_TDDPG, label = 'TDDPG')
+plt.plot(np.arange(0, 70000, 100),regret_DDPG, label = 'DDPG')
 plt.legend()
 plt.xlabel('Step')
 plt.ylabel('Regret (%)')
@@ -252,19 +253,14 @@ f.close()
 jx = np.random.randint(NEM_param.shape[1], size = 10)
 
 x = torch.arange(0, 3, 0.01)
-trained_output_TDDPG = []
 trained_output_DDPG = []
 for j in range(10) :
-    jj = jx[j]
     for i in range(len(x)) :
-        trained_output_TDDPG.append(agent_tddpg.actor.forward(torch.Tensor([x[i], NEM_param[0,jj], NEM_param[1,jj]])).detach().numpy())
         trained_output_DDPG.append(
-            agent_ddpg.actor.forward(torch.Tensor([x[i], NEM_param[0, jj], NEM_param[1, jj]])).detach().numpy())
+            agent_ddpg.actor.forward(torch.Tensor([x[i], NEM_param[0, 0], NEM_param[1, 0]])).detach().numpy())
 
-trained_output_TDDPG = np.vstack(trained_output_TDDPG)
 trained_output_DDPG = np.vstack(trained_output_DDPG)
-i = 8
-plt.plot(x, np.sum(trained_output_TDDPG[i * x.shape[0]:(i+1) * x.shape[0],:], axis = 1) - x.numpy(), label = 'TDDPG')
+i = 0
 plt.plot(x, np.sum(trained_output_DDPG[i * x.shape[0]:(i+1) * x.shape[0],:], axis = 1) - x.numpy(), label = 'DDPG')
 plt.plot(x, np.maximum(np.minimum(x, sum(opt_d_minus[:,i])), sum(opt_d_plus[:,i])) - x.numpy(), label = 'OPT_policy')
 plt.xlabel('Renewables')
