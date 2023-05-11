@@ -3,7 +3,7 @@ from utils import *
 import torch.optim as optim
 
 class TDDPGAgent:
-    def __init__(self, state_dim, action_dim, actor_lr = 0.001, critic_lr=0.001, \
+    def __init__(self, state_dim, action_dim, actor_lr = 0.0001, critic_lr=0.001, \
                  eta=1, d_max = 1, tau=0.001, max_memory_size = 10000):
         # Parameters
         self.state_dim = state_dim
@@ -43,7 +43,7 @@ class TDDPGAgent:
         return self.d_max * np.random.rand(self.action_dim)
 
     def update(self, batch_size, update_count):
-        self.actor_optim.lr = 0.001 * 1 / (1 + 0.1 * (update_count // 5000))
+        self.actor_optim.lr = 0.001 * 1 / (1 + 0.1 * (update_count // 1000))
         #self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
         states = torch.FloatTensor(np.vstack(states))

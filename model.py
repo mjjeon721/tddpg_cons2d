@@ -50,7 +50,9 @@ class Actor:
         self.d_max = d_max
         self.action_dim = action_dim
         # threshold initialization
-        self.d_plus, self.d_minus = self.d_max * np.sort(np.random.rand(4)).reshape(2,-1)
+        self.d_plus = 0.5 * self.d_max * np.random.rand(2)
+        self.d_minus = 0.5 * self.d_max * np.random.rand(2) + 0.5 * self.d_max
+        #self.d_plus, self.d_minus = self.d_max * np.sort(np.random.rand(4)).reshape(2,-1)
         self.d_plus = self.d_plus.reshape(1, self.action_dim)
         self.d_minus = self.d_minus.reshape(1, self.action_dim)
 

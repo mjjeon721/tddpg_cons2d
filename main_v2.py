@@ -29,7 +29,7 @@ batch_size = 100
 
 T = 10
 # Renewable parameters
-r_mean = 2 / d_max
+r_mean = 2.6 / d_max
 r_std = 9 / d_max
 r_max = 7.5 / d_max
 
@@ -39,7 +39,7 @@ interaction = 0
 # Model parameters
 # NEM parameters
 
-NEM_param = np.array([[0.27], [0.47]])
+NEM_param = np.array([[0.17], [0.75]])
     #0.5 * np.sort(np.random.rand(200)).reshape(2,-1)
 
 a = np.array([3, 2.7]) / d_max
@@ -60,7 +60,7 @@ env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 tic = time.perf_counter()
 
 epoch_size = 100
-num_epoch = 700
+num_epoch = 500
 update_count = 1
 
 DDPG_reward = []
@@ -92,7 +92,7 @@ for epoch in range(num_epoch) :
     state_opt = np.array([r_0_samples_opt[epoch], NEM_param[0, ix_opt], NEM_param[1, ix_opt]])
     for episode in range(epoch_size):
         explr_noise_std = 0.1 #* 1 / (1 + 0.1 * (interaction // 10000))
-        action_tddpg = np.clip(agent_tddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
+        action_tddpg = agent_tddpg.get_action(state_tddpg)#np.clip(agent_tddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
         action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
 
         # Observing next state and rewards
@@ -159,6 +159,35 @@ for epoch in range(num_epoch) :
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
 '''
+plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
+plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^-$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 49000, 20),d_minus_history[:,1])
+plt.plot(np.arange(0, 49000, 20),opt_d_minus[1] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^-$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 49000, 20),d_plus_history[:,0])
+plt.plot(np.arange(0, 49000, 20),opt_d_plus[0] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^+$')
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 49000, 20),d_plus_history[:,1])
+plt.plot(np.arange(0, 49000, 20),opt_d_plus[1] * np.ones(2450))
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^+$')
+plt.grid()
+plt.show()
+
+
 plt.plot(np.arange(0, 69000, 20),d_minus_history[:,0])
 plt.plot(np.arange(0, 69000, 20),opt_d_minus[0] * np.ones(3450))
 plt.xlabel('Interactions')
@@ -186,6 +215,7 @@ plt.xlabel('Interactions')
 plt.ylabel('$d_2^+$')
 plt.grid()
 plt.show()
+
 
 nsmoothed_curve_ddpg = np.array([])
 nsmoothed_curve_tddpg = np.array([])
