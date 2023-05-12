@@ -16,4 +16,4 @@ class Env:
     def get_reward(self, state, action):
         net_consum = np.sum(action) - state[0]
         reward = np.matmul(self.a, action) - 0.5 * np.matmul(self.b , action ** 2) - np.max(np.array((state[2], state[1])) * net_consum)
-        return reward / self.reward_max
+        return reward

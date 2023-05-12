@@ -69,7 +69,7 @@ class Actor:
         return torch.FloatTensor(actions)
 
     def policy_grad(self, state):
-        state_np = state.detach().numpy()
+        state_np = state.reshape(-1, 3)
         m = state_np.shape[0]
         J_plus = np.empty((0,self.action_dim))
         J_minus = np.empty((0, self.action_dim))

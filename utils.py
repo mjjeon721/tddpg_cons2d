@@ -1,5 +1,6 @@
 import numpy as np
 from collections import deque
+import math
 import random
 
 class AdamOptim():
@@ -28,6 +29,47 @@ class AdamOptim():
         w = w - self.lr * (m_dw_corr / (np.sqrt(v_dw_corr) + self.epsilon))
 
         return w
+
+class History :
+    def __init__(self):
+        self.keys = ['state', 'action', 'reward', 'utility', 'dU']
+        self.history = dict.fromkeys(self.keys)
+
+    def push(self, state, action, reward, utility):
+        if self.history['reward'] is not None:
+            self.history['state'] = np.vstack((self.history['state'], state))
+            self.history['action'] = np.vstack((self.history['action'], action))
+            self.history['reward'] = np.vstack((self.history['reward'], reward))
+            self.history['utility'] = np.vstack((self.history['utility'], utility))
+            '''
+            dU = np.zeros((len(self.history['state']),2))
+            for i in range(len(action)) :
+                d_sort_idx = np.argsort(self.history['action'][:,i])
+                U_sorted = self.history['utility'][d_sort_idx].reshape(-1)
+                d_sorted = self.history['action'][d_sort_idx, i].reshape(-1)
+                tmp = (U_sorted[1:] - U_sorted[:-1]) / (d_sorted[1:] - d_sorted[:-1])
+                tmp = np.append(tmp, tmp[-1])
+                dU[d_sort_idx,i] = tmp
+            self.history['dU'] = dU
+            '''
+
+        else :
+            self.history['state'] = state
+            self.history['action'] = action
+            self.history['reward'] = reward
+            self.history['utility'] = utility
+            self.history['dU'] = 0
+
+    def sample(self, batch_size):
+        batch = np.random.choice(np.arange(len(self.history['reward'])), size = batch_size, replace = False)
+
+        state_batch = self.history['state'][batch, :]
+        utility_batch = self.history['utility'][batch, :]
+        action_batch = self.history['action'][batch, :]
+        reward_batch = self.history['reward'][batch, :]
+        dU_batch = self.history['dU'][batch, :]
+
+        return state_batch, action_batch, reward_batch, utility_batch, dU_batch
 
 
 # Buffer class
@@ -82,3 +124,14 @@ def soft_updates(target, source,tau):
 def hard_updates(target, source):
     for target_param, param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(param.data)
+
+def find_nearest(array, value):
+    idx = np.searchsorted(array, value, side = "left")
+    if idx > 0 and (idx == len(array) or math.fabs(value - array[idx - 1]) < math.fabs(value - array[idx])):
+        return array[idx - 1], idx-1
+    else:
+        return array[idx], idx
+
+def delete_close_values(arr, value, tolerance) :
+    mask = np.abs(arr - value) > tolerance
+    return arr[mask]

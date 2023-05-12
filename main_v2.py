@@ -29,7 +29,7 @@ batch_size = 100
 
 T = 10
 # Renewable parameters
-r_mean = 2.6 / d_max
+r_mean = 3 / d_max
 r_std = 9 / d_max
 r_max = 7.5 / d_max
 
@@ -60,8 +60,9 @@ env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 tic = time.perf_counter()
 
 epoch_size = 100
-num_epoch = 500
+num_epoch = 50
 update_count = 1
+update_count_thresh = 1
 
 DDPG_reward = []
 DDPG_avg_reward = []
@@ -92,7 +93,7 @@ for epoch in range(num_epoch) :
     state_opt = np.array([r_0_samples_opt[epoch], NEM_param[0, ix_opt], NEM_param[1, ix_opt]])
     for episode in range(epoch_size):
         explr_noise_std = 0.1 #* 1 / (1 + 0.1 * (interaction // 10000))
-        action_tddpg = agent_tddpg.get_action(state_tddpg)#np.clip(agent_tddpg.get_action(state_tddpg) + explr_noise_std * np.random.randn(2), 0, 1)
+        action_tddpg = agent_tddpg.get_action(state_tddpg) # np.clip(agent_tddpg.get_action(state_tddpg) + 0.01 * np.random.randn(2), 0, 1)
         action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
 
         # Observing next state and rewards
@@ -106,6 +107,9 @@ for epoch in range(num_epoch) :
 
         reward_tddpg = env.get_reward(state_tddpg, action_tddpg).reshape(1,)
         reward_ddpg = env.get_reward(state_ddpg, action_ddpg).reshape(1,)
+
+        utility_tddpg = reward_tddpg + np.max((sum(action_tddpg) - state_tddpg[0]) * state_tddpg[1:])
+        utility_ddpg = reward_ddpg + np.max((sum(action_ddpg) - state_ddpg[0]) * state_ddpg[1:])
 
         done = True if episode == epoch_size-1 else False
 
@@ -122,7 +126,6 @@ for epoch in range(num_epoch) :
         epoch_reward_OPT += reward_opt
 
         # Storing in replay buffer
-        agent_tddpg.memory.push(state_tddpg, action_tddpg, reward_tddpg, new_state_tddpg, done)
         agent_ddpg.memory.push(state_ddpg, action_ddpg, reward_ddpg, new_state_ddpg, done)
         interaction+=1
 
@@ -133,13 +136,23 @@ for epoch in range(num_epoch) :
         ix_tddpg = ix_n_tddpg
         ix_opt = ix_n_opt
 
-        if interaction > 1000 and (interaction%20 == 1):
-            for grad_update in range(20):
-                agent_tddpg.update(batch_size, update_count)
-                agent_ddpg.update(batch_size, update_count)
-                update_count += 1
+        if interaction > 100 :
+            agent_tddpg.update(state_tddpg, action_tddpg, utility_tddpg, update_count_thresh)
+            update_count_thresh += 1
+
+        # Storing tddpg trajectory in the history
+        agent_tddpg.history.push(state_tddpg, action_tddpg, reward_tddpg, utility_tddpg)
+
+        if interaction % 50 == 1:
             d_plus_history.append(agent_tddpg.actor.d_plus)
             d_minus_history.append(agent_tddpg.actor.d_minus)
+    '''
+        if interaction > 1000 and (interaction%20 == 1):
+            for grad_update in range(20):
+                #agent_tddpg.update(batch_size, update_count)
+                agent_ddpg.update(batch_size, update_count)
+                update_count += 1
+    '''
     DDPG_reward.append(epoch_reward_DDPG)
     DDPG_avg_reward.append(np.mean(DDPG_reward[-100:]))
     TDDPG_reward.append(epoch_reward_TDDPG)
@@ -158,6 +171,9 @@ for epoch in range(num_epoch) :
 
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
+plt.plot(np.arange(d_plus_history.shape[0]), d_plus_history[:,0])
+plt.ylim(bottom = 0, top = 1)
+plt.show()
 '''
 plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
 plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))
