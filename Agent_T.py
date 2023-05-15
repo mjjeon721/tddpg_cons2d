@@ -45,10 +45,10 @@ class TDDPGAgent:
     def random_action(self):
         return self.d_max * np.random.rand(self.action_dim)
 
-    def update(self, current_state, current_action, current_reward):
+    def update(self, current_state, current_action, current_reward, current_utility):
         # self.actor_optim.lr = 0.001 * 1 / (1 + 0.1 * (update_count // 1000))
         # self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
-        states, actions, rewards, utilities = self.history.sample(100)
+        #states, actions, rewards, utilities = self.history.sample(100)
         #actions = self.history.history['action']
         #U = self.history.history['utility'].reshape(-1)
         #utilities = utilities.reshape(-1)
@@ -56,6 +56,15 @@ class TDDPGAgent:
         #dU = np.zeros((actions.shape))
         # Policy updates
         # Computing dU
+
+        actions = self.history.history['action']
+        utilities = self.history.history['utility'].reshape(-1)
+
+        sorted_ix = np.argsort(actions[:,1])
+        actions_i = actions[sorted_ix, 1]
+        val, ix = find_nearest(actions_i, current_action[1])
+
+        dU = (current_utility - utilities[sorted_ix[ix]])/(current_action[0] - actions[sorted_ix[ix], 0])
 
         T = KDTree(self.history.history['action'])
         near_pt = T.query(current_action, 1)

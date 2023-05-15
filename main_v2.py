@@ -60,7 +60,7 @@ env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 tic = time.perf_counter()
 
 epoch_size = 100
-num_epoch = 50
+num_epoch = 1000
 update_count = 1
 update_count_thresh = 1
 
@@ -127,8 +127,8 @@ for epoch in range(num_epoch) :
 
         # Storing in replay buffer
         agent_ddpg.memory.push(state_ddpg, action_ddpg, reward_ddpg, new_state_ddpg, done)
-        if interaction > 1000 :
-            agent_tddpg.update(state_tddpg,action_tddpg, reward_tddpg)
+        if interaction > 5000 :
+            agent_tddpg.update(state_tddpg,action_tddpg, reward_tddpg, utility_tddpg)
             update_count_thresh += 1
             # Storing tddpg trajectory in the history
         agent_tddpg.history.push(state_tddpg, action_tddpg, reward_tddpg, utility_tddpg)
