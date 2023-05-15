@@ -3,6 +3,7 @@ import numpy as np
 from model import *
 from utils import *
 import torch.optim as optim
+from scipy.spatial import KDTree
 
 
 class TDDPGAgent:
@@ -44,17 +45,33 @@ class TDDPGAgent:
     def random_action(self):
         return self.d_max * np.random.rand(self.action_dim)
 
-    def update(self):
+    def update(self, current_state, current_action, current_reward):
         # self.actor_optim.lr = 0.001 * 1 / (1 + 0.1 * (update_count // 1000))
         # self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
         states, actions, rewards, utilities = self.history.sample(100)
         #actions = self.history.history['action']
         #U = self.history.history['utility'].reshape(-1)
-        utilities = utilities.reshape(-1)
-        rewards = rewards.reshape(-1)
-        dU = np.zeros((actions.shape))
+        #utilities = utilities.reshape(-1)
+        #rewards = rewards.reshape(-1)
+        #dU = np.zeros((actions.shape))
         # Policy updates
         # Computing dU
+
+        T = KDTree(self.history.history['action'])
+        near_pt = T.query(current_action, 1)
+        reward_val = self.history.history['reward'].reshape(-1)[near_pt[1]]
+        action_val = self.history.history['action'][near_pt[1], :]
+        j = 0
+        tmp = np.delete(self.history.history['action'], near_pt[1], axis=0)
+        while np.all(action_val == current_action ) :
+            T = KDTree(tmp)
+            near_pt = T.query(current_action,1)
+            reward_val = self.history.history['reward'].reshape(-1)[near_pt[1]]
+            action_val = self.history.history['action'][near_pt[1], :]
+            tmp = np.delete(tmp, near_pt[1], axis=0)
+            j += 1
+        dr = (current_reward - reward_val) / (current_action - action_val)
+        '''
         for i in range(2):
             sorted_ix = np.argsort(self.history.history['action'][:, i])
             U_i = self.history.history['reward'][sorted_ix]
@@ -72,9 +89,10 @@ class TDDPGAgent:
             # tmp = (np.unique(U)[i1] - np.unique(U)[i2]) /( np.unique(actions[i1,i]) - np.unique(actions[i2, i]))
         #print(dU)
         dU = dU.reshape(1,-1)
-        J_plus, J_minus = self.actor.policy_grad(states)
-        d_plus_grad = np.sum(np.matmul(dU, J_plus).reshape(-1, 2), axis=0) / 100
-        d_minus_grad = np.sum(np.matmul(dU, J_minus).reshape(-1, 2), axis=0) / 100
+        '''
+        J_plus, J_minus = self.actor.policy_grad(current_state)
+        d_plus_grad = np.sum(np.matmul(dU, J_plus).reshape(-1, 2), axis=0)
+        d_minus_grad = np.sum(np.matmul(dU, J_minus).reshape(-1, 2), axis=0)
         # self.actor.d_plus = np.clip(self.actor_optim.update(update_count, self.actor.d_plus, d_plus_grad), 0, self.d_max)
         # self.actor.d_minus = np.clip(self.actor_optim.update(update_count, self.actor.d_minus, d_minus_grad), self.actor.d_plus, self.d_max)
         # self.actor.d_plus = np.clip(self.actor.d_plus + self.actor_lr * d_plus_grad, 0, self.d_max)

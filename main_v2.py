@@ -127,14 +127,11 @@ for epoch in range(num_epoch) :
 
         # Storing in replay buffer
         agent_ddpg.memory.push(state_ddpg, action_ddpg, reward_ddpg, new_state_ddpg, done)
-        # Storing tddpg trajectory in the history
+        if interaction > 1000 :
+            agent_tddpg.update(state_tddpg,action_tddpg, reward_tddpg)
+            update_count_thresh += 1
+            # Storing tddpg trajectory in the history
         agent_tddpg.history.push(state_tddpg, action_tddpg, reward_tddpg, utility_tddpg)
-
-        if interaction > 1000 and (interaction % 20 == 1):
-            for grad_update in range(20):
-                agent_tddpg.update()
-                update_count_thresh += 1
-
         if interaction % 50 == 1:
             d_plus_history.append(agent_tddpg.actor.d_plus)
             d_minus_history.append(agent_tddpg.actor.d_minus)
