@@ -60,7 +60,7 @@ env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 tic = time.perf_counter()
 
 epoch_size = 100
-num_epoch = 500
+num_epoch = 50
 update_count = 1
 update_count_thresh = 1
 
@@ -130,9 +130,10 @@ for epoch in range(num_epoch) :
         # Storing tddpg trajectory in the history
         agent_tddpg.history.push(state_tddpg, action_tddpg, reward_tddpg, utility_tddpg)
 
-        if interaction > 1000 :
-            agent_tddpg.update(state_tddpg, action_tddpg, utility_tddpg, update_count_thresh)
-            update_count_thresh += 1
+        if interaction > 1000 and (interaction % 20 == 1):
+            for grad_update in range(20):
+                agent_tddpg.update()
+                update_count_thresh += 1
 
         if interaction % 50 == 1:
             d_plus_history.append(agent_tddpg.actor.d_plus)
@@ -162,7 +163,7 @@ for epoch in range(num_epoch) :
     # End of epoch, policy evaluation phase
     # Number of episodes : 100
     # Number of seeds : 1
-    if epoch % 50 == 49 :
+    if epoch % 10 == 9 :
         toc = time.perf_counter()
         print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
         print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, DDPG_avg_reward : {2:.4f} Optimal_avg_reward : {3:.4f}'. format(epoch, TDDPG_avg_reward[-1], DDPG_avg_reward[-1], OPT_avg_reward[-1]))
@@ -170,7 +171,7 @@ for epoch in range(num_epoch) :
 
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
-plt.plot(np.arange(d_plus_history.shape[0]), d_plus_history[:,0])
+plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
 #plt.ylim(bottom = 0, top = 1)
 plt.show()
 '''

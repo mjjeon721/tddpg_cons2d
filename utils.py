@@ -67,9 +67,8 @@ class History :
         utility_batch = self.history['utility'][batch, :]
         action_batch = self.history['action'][batch, :]
         reward_batch = self.history['reward'][batch, :]
-        dU_batch = self.history['dU'][batch, :]
 
-        return state_batch, action_batch, reward_batch, utility_batch, dU_batch
+        return state_batch, action_batch, reward_batch, utility_batch
 
 
 # Buffer class
