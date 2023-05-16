@@ -24,6 +24,9 @@ class TDDPGAgent:
         #self.critic = Critic(self.state_dim, self.action_dim)
         #self.critic_target = Critic(self.state_dim, self.action_dim)
         self.reward_func = Reward()
+        #self.reward_func_target = Reward()
+
+        #hard_updates(self.reward_func_target, self.reward_func)
 
         # Target network initialization
 #        hard_updates(self.critic_target, self.critic)
@@ -46,8 +49,8 @@ class TDDPGAgent:
         return self.d_max * np.random.rand(self.action_dim)
 
     def update(self, batch_size, update_count):
-        self.actor_lr = 0.001 * 1 / (1 + 0.1 * (update_count // 10000))
-        self.reward_optim.param_groups[0]['lr'] = 0.001 * 1 / (1 + 0.1 * (update_count // 10000))
+        self.actor_lr = 0.001 * 1 / (1 + 0.1 * (update_count // 5000))
+        self.reward_optim.param_groups[0]['lr'] = 0.01 * 1 / (1 + 0.1 * (update_count // 5000))
         # self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
         states, actions, rewards, utilities = self.history.sample(batch_size)
         #actions = self.history.history['action']
@@ -58,7 +61,7 @@ class TDDPGAgent:
         d_samples = torch.FloatTensor(actions)
         rewards_torch = torch.FloatTensor(rewards)
         reward_vals = self.reward_func.forward(g_samples, d_samples)
-        reward_loss = self.reward_criterion(reward_vals, rewards_torch)
+        reward_loss = self.reward_criterion(reward_vals, -rewards_torch)
         self.reward_optim.zero_grad()
         reward_loss.backward()
         self.reward_optim.step()
@@ -67,11 +70,11 @@ class TDDPGAgent:
         self.reward_func.fcz1.weight.data = torch.relu(self.reward_func.fcz1.weight.data)
         self.reward_func.fcz2.weight.data = torch.relu(self.reward_func.fcz2.weight.data)
 
-        d_samples = Variable(d_samples, requires_grad = True)
-        policy_loss = -self.reward_func.forward(g_samples, d_samples).mean()
+        current_pol_actions = Variable(self.actor.forward(torch.FloatTensor(states)), requires_grad = True)
+        policy_loss = self.reward_func.forward(g_samples, current_pol_actions).mean()
         policy_loss.backward()
 
-        dr = d_samples.grad.view(1,-1).detach().numpy()
+        dr = current_pol_actions.grad.view(1,-1).detach().numpy()
         J_plus, J_minus = self.actor.policy_grad(states)
         d_plus_grad = np.sum(np.matmul(dr, J_plus).reshape(-1, 2), axis=0)
         d_minus_grad = np.sum(np.matmul(dr, J_minus).reshape(-1, 2), axis=0)

@@ -164,7 +164,7 @@ for epoch in range(num_epoch) :
     # End of epoch, policy evaluation phase
     # Number of episodes : 100
     # Number of seeds : 1
-    if epoch % 10 == 9 :
+    if epoch % 50 == 49 :
         toc = time.perf_counter()
         print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
         #print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, DDPG_avg_reward : {2:.4f} Optimal_avg_reward : {3:.4f}'. format(epoch, TDDPG_avg_reward[-1], DDPG_avg_reward[-1], OPT_avg_reward[-1]))
@@ -199,74 +199,17 @@ plt.grid()
 plt.show()
 '''
 '''
-plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
-plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_1^-$')
-plt.grid()
-plt.show()
-
-plt.plot(np.arange(0, 49000, 20),d_minus_history[:,1])
-plt.plot(np.arange(0, 49000, 20),opt_d_minus[1] * np.ones(2450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_2^-$')
-plt.grid()
-plt.show()
-
-plt.plot(np.arange(0, 49000, 20),d_plus_history[:,0])
-plt.plot(np.arange(0, 49000, 20),opt_d_plus[0] * np.ones(2450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_1^+$')
-plt.grid()
-plt.show()
-
-plt.plot(np.arange(0, 49000, 20),d_plus_history[:,1])
-plt.plot(np.arange(0, 49000, 20),opt_d_plus[1] * np.ones(2450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_2^+$')
-plt.grid()
-plt.show()
-
-
-plt.plot(np.arange(0, 69000, 20),d_minus_history[:,0])
-plt.plot(np.arange(0, 69000, 20),opt_d_minus[0] * np.ones(3450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_1^-$')
-plt.grid()
-plt.show()
-
-plt.plot(np.arange(0, 69000, 20),d_minus_history[:,1])
-plt.plot(np.arange(0, 69000, 20),opt_d_minus[1] * np.ones(3450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_2^-$')
-plt.grid()
-plt.show()
-
-plt.plot(np.arange(0, 69000, 20),d_plus_history[:,0])
-plt.plot(np.arange(0, 69000, 20),opt_d_plus[0] * np.ones(3450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_1^+$')
-plt.grid()
-plt.show()
-
-plt.plot(np.arange(0, 69000, 20),d_plus_history[:,1])
-plt.plot(np.arange(0, 69000, 20),opt_d_plus[1] * np.ones(3450))
-plt.xlabel('Interactions')
-plt.ylabel('$d_2^+$')
-plt.grid()
-plt.show()
-
 
 nsmoothed_curve_ddpg = np.array([])
 nsmoothed_curve_tddpg = np.array([])
 nsmoothed_curve_opt = np.array([])
 for i in range(num_epoch) :
-    nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-10, 0):i+1]))
+ #   nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-10, 0):i+1]))
     nsmoothed_curve_tddpg = np.append(nsmoothed_curve_tddpg, np.mean(TDDPG_avg_reward[np.maximum(i -10, 0):i + 1]))
-    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i-00, 0):i + 1]))
-plt.plot(np.arange(0, 70000, 100),nsmoothed_curve_tddpg, label = 'TDDPG')
-plt.plot(np.arange(0, 70000, 100),nsmoothed_curve_ddpg, label = 'DDPG')
-plt.plot(np.arange(0, 70000, 100),nsmoothed_curve_opt, label = 'OPT')
+    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i-10, 0):i + 1]))
+plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_tddpg, label = 'TDDPG')
+#plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_ddpg, label = 'DDPG')
+plt.plot(np.arange(0, 50000, 100),nsmoothed_curve_opt, label = 'OPT')
 plt.legend()
 plt.xlabel('Step')
 plt.ylabel('Performance')
@@ -546,3 +489,21 @@ plt.legend()
 plt.show()
 
 '''
+
+x = torch.arange(0, r_max, 0.01)
+d = torch.FloatTensor(d_minus_history[301,:]).view(-1)
+reward_func_trained = []
+actual_reward =[]
+for i in range(len(x)):
+    reward_func_trained.append(-agent_tddpg.reward_func(x[i], d).view(-1).detach().numpy())
+    state = np.concatenate((np.array([x[i].item()]), NEM_param.reshape(-1)))
+    actual_reward.append(env.get_reward(state, d.detach().numpy()))
+
+reward_func_trained = np.vstack(reward_func_trained).reshape(-1)
+actual_reward = np.vstack(actual_reward)
+
+plt.plot(x, actual_reward, label = 'Actual')
+plt.plot(x, reward_func_trained, label = 'Trained')
+plt.grid()
+plt.legend()
+plt.show()

@@ -71,8 +71,8 @@ class Reward(nn.Module) :
         u1 = self.relu(self.ut0(g))
         u2 = self.relu(self.ut1(u1))
 
-        z1 = self.fcz0(action * self.relu(self.zu0(g))) + self.fcy0(action * self.du0(g)) + self.fcu0(g)
-        z2 = self.fcz1(z1 * self.relu(self.zu1(u1))) + self.fcy1(action * self.du1(u1)) + self.fcu1(u1)
+        z1 = self.relu(self.fcz0(action * self.relu(self.zu0(g))) + self.fcy0(action * self.du0(g)) + self.fcu0(g))
+        z2 = self.relu(self.fcz1(z1 * self.relu(self.zu1(u1))) + self.fcy1(action * self.du1(u1)) + self.fcu1(u1))
         z3 = self.fcz2(z2 * self.relu(self.zu2(u2))) + self.fcy2(action * self.du2(u2)) + self.fcu2(u2)
 
         return z3
