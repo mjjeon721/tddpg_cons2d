@@ -60,7 +60,7 @@ env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 tic = time.perf_counter()
 
 epoch_size = 100
-num_epoch = 50
+num_epoch = 200
 update_count = 1
 update_count_thresh = 1
 
@@ -174,9 +174,12 @@ for epoch in range(num_epoch) :
 
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
-#plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
+plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
 #plt.ylim(bottom = 0, top = 1)
-#plt.show()
+plt.show()
+
+
+
 '''
 plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
 plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))

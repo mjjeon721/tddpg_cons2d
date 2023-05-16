@@ -6,7 +6,7 @@ import torch.optim as optim
 
 
 class TDDPGAgent:
-    def __init__(self, state_dim, action_dim, actor_lr=1e-6, reward_lr=0.001, \
+    def __init__(self, state_dim, action_dim, actor_lr=1e-3, reward_lr=0.001, \
                  eta=1, d_max=1, tau=0.001, max_memory_size=10000):
         # Parameters
         self.state_dim = state_dim
@@ -66,38 +66,17 @@ class TDDPGAgent:
         self.reward_func.fcz1.weight.data = torch.relu(self.reward_func.fcz1.weight.data)
         self.reward_func.fcz2.weight.data = torch.relu(self.reward_func.fcz2.weight.data)
 
+        d_samples = Variable(d_samples, requires_grad = True)
+        policy_loss = -self.reward_func.forward(g_samples, d_samples).mean()
+        policy_loss.backward()
 
-
-
-
-        utilities = utilities.reshape(-1)
-        rewards = rewards.reshape(-1)
-        dU = np.zeros((actions.shape))
-        # Policy updates
-        # Computing dU
-        for i in range(2):
-            sorted_ix = np.argsort(self.history.history['action'][:, i])
-            U_i = self.history.history['reward'][sorted_ix]
-            actions_i = self.history.history['action'][sorted_ix, i]
-            for j in range(len(dU)):
-                val1, idx1 = find_nearest(actions_i, actions[j,i])
-                U1 = U_i[idx1]
-                while val1 == actions[j,i]:
-                    actions_i = np.delete(actions_i, idx1)
-                    U_i = np.delete(U_i, idx1)
-                    val1, idx1 = find_nearest(actions_i, actions[j,i])
-                    U1 = U_i[idx1]
-                dU[j,i] = (U1 - rewards[j]) / (val1 - actions[j,i])
-            # 1,i2 = np.argsort(np.abs(np.unique(actions[:,i]) - current_action[i]))[[0,1]]
-            # tmp = (np.unique(U)[i1] - np.unique(U)[i2]) /( np.unique(actions[i1,i]) - np.unique(actions[i2, i]))
-        #print(dU)
-        dU = dU.reshape(1,-1)
+        dr = d_samples.grad.view(1,-1).detach().numpy()
         J_plus, J_minus = self.actor.policy_grad(states)
-        d_plus_grad = np.sum(np.matmul(dU, J_plus).reshape(-1, 2), axis=0) / 100
-        d_minus_grad = np.sum(np.matmul(dU, J_minus).reshape(-1, 2), axis=0) / 100
+        d_plus_grad = np.sum(np.matmul(dr, J_plus).reshape(-1, 2), axis=0)
+        d_minus_grad = np.sum(np.matmul(dr, J_minus).reshape(-1, 2), axis=0)
         # self.actor.d_plus = np.clip(self.actor_optim.update(update_count, self.actor.d_plus, d_plus_grad), 0, self.d_max)
         # self.actor.d_minus = np.clip(self.actor_optim.update(update_count, self.actor.d_minus, d_minus_grad), self.actor.d_plus, self.d_max)
         # self.actor.d_plus = np.clip(self.actor.d_plus + self.actor_lr * d_plus_grad, 0, self.d_max)
-        self.actor.d_plus = self.actor.d_plus + self.actor_lr * d_plus_grad
+        self.actor.d_plus = self.actor.d_plus - self.actor_lr * d_plus_grad
         # self.actor.d_minus = np.clip(self.actor.d_minus + self.actor_lr * d_minus_grad, self.actor.d_plus, self.d_max)
-        self.actor.d_minus = self.actor.d_minus + self.actor_lr * d_minus_grad
+        self.actor.d_minus = self.actor.d_minus - self.actor_lr * d_minus_grad
