@@ -85,31 +85,32 @@ ix_tddpg = 0#np.random.randint(NEM_param.shape[1])
 ix_opt = 0#np.random.randint(NEM_param.shape[1])
 
 for epoch in range(num_epoch) :
-    epoch_reward_DDPG = 0
+    #epoch_reward_DDPG = 0
     epoch_reward_TDDPG = 0
     epoch_reward_OPT = 0
-    state_ddpg = np.array([r_0_samples_ddpg[epoch], NEM_param[0, ix_ddpg], NEM_param[1, ix_ddpg]])
+    #state_ddpg = np.array([r_0_samples_ddpg[epoch], NEM_param[0, ix_ddpg], NEM_param[1, ix_ddpg]])
     state_tddpg = np.array([r_0_samples_tddpg[epoch], NEM_param[0, ix_tddpg], NEM_param[1, ix_tddpg]])
     state_opt = np.array([r_0_samples_opt[epoch], NEM_param[0, ix_opt], NEM_param[1, ix_opt]])
     for episode in range(epoch_size):
+        state_opt = state_tddpg
         explr_noise_std = 0.1 #* 1 / (1 + 0.1 * (interaction // 10000))
         action_tddpg = agent_tddpg.get_action(state_tddpg) # np.clip(agent_tddpg.get_action(state_tddpg) + 0.01 * np.random.randn(2), 0, 1)
-        action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
+        #action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
 
         # Observing next state and rewards
-        ix_n_ddpg = np.random.randint(NEM_param.shape[1])
+        #ix_n_ddpg = np.random.randint(NEM_param.shape[1])
         ix_n_tddpg = np.random.randint(NEM_param.shape[1])
         ix_n_opt = np.random.randint(NEM_param.shape[1])
 
-        new_state_ddpg = np.append(env.get_next_state(), [NEM_param[0,ix_n_ddpg], NEM_param[1,ix_n_ddpg]])
+        #new_state_ddpg = np.append(env.get_next_state(), [NEM_param[0,ix_n_ddpg], NEM_param[1,ix_n_ddpg]])
         new_state_tddpg = np.append(env.get_next_state(), [NEM_param[0, ix_n_tddpg], NEM_param[1, ix_n_tddpg]])
         new_state_opt = np.append(env.get_next_state(), [NEM_param[0, ix_n_opt], NEM_param[1, ix_n_opt]])
 
         reward_tddpg = env.get_reward(state_tddpg, action_tddpg).reshape(1,)
-        reward_ddpg = env.get_reward(state_ddpg, action_ddpg).reshape(1,)
+        #reward_ddpg = env.get_reward(state_ddpg, action_ddpg).reshape(1,)
 
         utility_tddpg = reward_tddpg + np.max((sum(action_tddpg) - state_tddpg[0]) * state_tddpg[1:])
-        utility_ddpg = reward_ddpg + np.max((sum(action_ddpg) - state_ddpg[0]) * state_ddpg[1:])
+        #utility_ddpg = reward_ddpg + np.max((sum(action_ddpg) - state_ddpg[0]) * state_ddpg[1:])
 
         done = True if episode == epoch_size-1 else False
 
@@ -121,27 +122,27 @@ for epoch in range(num_epoch) :
             action_opt = opt_d_plus[:,ix_opt] + 0.5 * (state_opt[0] - sum(opt_d_plus[:,ix_opt]))
         reward_opt = env.get_reward(state_opt, action_opt).reshape(1,)
 
-        epoch_reward_DDPG += reward_ddpg
+        #epoch_reward_DDPG += reward_ddpg
         epoch_reward_TDDPG += reward_tddpg
         epoch_reward_OPT += reward_opt
 
         # Storing in replay buffer
-        agent_ddpg.memory.push(state_ddpg, action_ddpg, reward_ddpg, new_state_ddpg, done)
+        #agent_ddpg.memory.push(state_ddpg, action_ddpg, reward_ddpg, new_state_ddpg, done)
         # Storing tddpg trajectory in the history
         agent_tddpg.history.push(state_tddpg, action_tddpg, reward_tddpg, utility_tddpg)
 
-        if interaction > 1000 and (interaction % 20 == 1):
+        if interaction > 500 and (interaction % 20 == 1):
             for grad_update in range(20):
-                agent_tddpg.update()
+                agent_tddpg.update(batch_size)
                 update_count_thresh += 1
 
         if interaction % 50 == 1:
             d_plus_history.append(agent_tddpg.actor.d_plus)
             d_minus_history.append(agent_tddpg.actor.d_minus)
-        state_ddpg = new_state_ddpg
+        #state_ddpg = new_state_ddpg
         state_tddpg = new_state_tddpg
         state_opt = new_state_opt
-        ix_ddpg = ix_n_ddpg
+        #ix_ddpg = ix_n_ddpg
         ix_tddpg = ix_n_tddpg
         ix_opt = ix_n_opt
         interaction += 1
@@ -153,8 +154,8 @@ for epoch in range(num_epoch) :
                 agent_ddpg.update(batch_size, update_count)
                 update_count += 1
     '''
-    DDPG_reward.append(epoch_reward_DDPG)
-    DDPG_avg_reward.append(np.mean(DDPG_reward[-100:]))
+    #DDPG_reward.append(epoch_reward_DDPG)
+    #DDPG_avg_reward.append(np.mean(DDPG_reward[-100:]))
     TDDPG_reward.append(epoch_reward_TDDPG)
     TDDPG_avg_reward.append(np.mean(TDDPG_reward[-100:]))
     OPT_reward.append(epoch_reward_OPT)
@@ -166,14 +167,16 @@ for epoch in range(num_epoch) :
     if epoch % 10 == 9 :
         toc = time.perf_counter()
         print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
-        print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, DDPG_avg_reward : {2:.4f} Optimal_avg_reward : {3:.4f}'. format(epoch, TDDPG_avg_reward[-1], DDPG_avg_reward[-1], OPT_avg_reward[-1]))
+        #print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, DDPG_avg_reward : {2:.4f} Optimal_avg_reward : {3:.4f}'. format(epoch, TDDPG_avg_reward[-1], DDPG_avg_reward[-1], OPT_avg_reward[-1]))
+        print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, Optimal_avg_reward : {2:.4f}'.format(
+            epoch, TDDPG_avg_reward[-1], OPT_avg_reward[-1]))
         tic = time.perf_counter()
 
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
-plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
+#plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
 #plt.ylim(bottom = 0, top = 1)
-plt.show()
+#plt.show()
 '''
 plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
 plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))

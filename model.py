@@ -11,7 +11,72 @@ def fanin_init(size, fanin = None) :
     v = 1. / np.sqrt(fanin)
     return torch.Tensor(size).uniform_(-v, v)
 
-# Critic network class
+def fanin_init_pos(size, fanin = None) :
+    fanin = fanin or size[0]
+    v = 1. / np.sqrt(fanin)
+    return torch.Tensor(size).uniform_(0, v)
+
+# Reward function neural network model
+class Reward(nn.Module) :
+    def __init__(self):
+        super(Reward, self).__init__()
+        self.ut0 = nn.Linear(1, 128)
+        self.ut1 = nn.Linear(128, 64)
+
+        self.zu0 = nn.Linear(1, 2)
+        self.du0 = nn.Linear(1, 2)
+        self.fcu0 = nn.Linear(1,128)
+        self.fcz0 = nn.Linear(2, 128, bias= False)
+        self.fcy0 = nn.Linear(2, 128, bias = False)
+
+        self.zu1 = nn.Linear(128, 128)
+        self.du1 = nn.Linear(128, 2)
+        self.fcu1 = nn.Linear(128, 64)
+        self.fcz1 = nn.Linear(128, 64, bias = False)
+        self.fcy1 = nn.Linear(2, 64, bias = False)
+
+        self.zu2 = nn.Linear(64, 64)
+        self.du2 = nn.Linear(64, 2)
+        self.fcu2 = nn.Linear(64, 1)
+        self.fcz2 = nn.Linear(64, 1, bias = False)
+        self.fcy2 = nn.Linear(2, 1, bias = False)
+
+        self.relu = nn.ReLU()
+        self.init_weights()
+
+    def init_weights(self):
+        self.zu0.weight.data = fanin_init(self.zu0.weight.data.size())
+        self.du0.weight.data = fanin_init(self.du0.weight.data.size())
+        self.fcu0.weight.data = fanin_init(self.fcu0.weight.data.size())
+        self.fcz0.weight.data = fanin_init_pos(self.fcz0.weight.data.size())
+        self.fcy0.weight.data = fanin_init(self.fcy0.weight.data.size())
+
+        self.zu1.weight.data = fanin_init(self.zu1.weight.data.size())
+        self.du1.weight.data = fanin_init(self.du1.weight.data.size())
+        self.fcu1.weight.data = fanin_init(self.fcu1.weight.data.size())
+        self.fcz1.weight.data = fanin_init_pos(self.fcz1.weight.data.size())
+        self.fcy1.weight.data = fanin_init(self.fcy1.weight.data.size())
+
+        self.zu2.weight.data = fanin_init(self.zu2.weight.data.size())
+        self.du2.weight.data = fanin_init(self.du2.weight.data.size())
+        self.fcu2.weight.data = fanin_init(self.fcu2.weight.data.size())
+        self.fcz2.weight.data = fanin_init_pos(self.fcz2.weight.data.size())
+        self.fcy2.weight.data = fanin_init(self.fcy2.weight.data.size())
+
+        self.ut1.weight.data = fanin_init(self.ut1.weight.data.size())
+        self.ut0.weight.data = fanin_init(self.ut0.weight.data.size())
+
+    def forward(self, state, action):
+        g = state.view(-1,1)
+        u1 = self.relu(self.ut0(g))
+        u2 = self.relu(self.ut1(u1))
+
+        z1 = self.fcz0(action * self.relu(self.zu0(g))) + self.fcy0(action * self.du0(g)) + self.fcu0(g)
+        z2 = self.fcz1(z1 * self.relu(self.zu1(u1))) + self.fcy1(action * self.du1(u1)) + self.fcu1(u1)
+        z3 = self.fcz2(z2 * self.relu(self.zu2(u2))) + self.fcy2(action * self.du2(u2)) + self.fcu2(u2)
+
+        return z3
+
 class Critic(nn.Module) :
     def __init__(self, states_dim, action_dim, hidden1 = 128, hidden2 = 64, init_w = 3e-4):
         super(Critic, self).__init__()
