@@ -39,7 +39,7 @@ interaction = 0
 # Model parameters
 # NEM parameters
 
-NEM_param = np.array([[0.17], [0.75]])
+NEM_param = np.array([[0.26], [0.47]])
     #0.5 * np.sort(np.random.rand(200)).reshape(2,-1)
 
 a = np.array([3, 2.7]) / d_max
@@ -95,7 +95,7 @@ for epoch in range(num_epoch) :
         explr_noise_std = 0.1 #* 1 / (1 + 0.1 * (interaction // 10000))
         action_tddpg = agent_tddpg.get_action(state_tddpg) # np.clip(agent_tddpg.get_action(state_tddpg) + 0.01 * np.random.randn(2), 0, 1)
         action_ddpg = np.clip(agent_ddpg.get_action(state_ddpg) + explr_noise_std * np.random.randn(2), 0, 1)
-
+        state_opt = state_tddpg
         # Observing next state and rewards
         ix_n_ddpg = np.random.randint(NEM_param.shape[1])
         ix_n_tddpg = np.random.randint(NEM_param.shape[1])
@@ -127,8 +127,8 @@ for epoch in range(num_epoch) :
 
         # Storing in replay buffer
         agent_ddpg.memory.push(state_ddpg, action_ddpg, reward_ddpg, new_state_ddpg, done)
-        if interaction > 5000 :
-            agent_tddpg.update(state_tddpg,action_tddpg, reward_tddpg, utility_tddpg)
+        if interaction > 500 :
+            agent_tddpg.update(state_tddpg,action_tddpg, reward_tddpg, utility_tddpg, update_count_thresh)
             update_count_thresh += 1
             # Storing tddpg trajectory in the history
         agent_tddpg.history.push(state_tddpg, action_tddpg, reward_tddpg, utility_tddpg)
@@ -160,7 +160,7 @@ for epoch in range(num_epoch) :
     # End of epoch, policy evaluation phase
     # Number of episodes : 100
     # Number of seeds : 1
-    if epoch % 10 == 9 :
+    if epoch % 50 == 49 :
         toc = time.perf_counter()
         print('1 Epoch running time : {0:.4f} (s)'.format(toc - tic))
         print('Epoch : {0}, TDDPG_avg_reward : {1:.4f}, DDPG_avg_reward : {2:.4f} Optimal_avg_reward : {3:.4f}'. format(epoch, TDDPG_avg_reward[-1], DDPG_avg_reward[-1], OPT_avg_reward[-1]))
@@ -168,8 +168,25 @@ for epoch in range(num_epoch) :
 
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
-plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
-#plt.ylim(bottom = 0, top = 1)
+
+plt.plot(np.arange(0, 100000, 50), d_plus_history[:,0])
+plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_plus[0])
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 100000, 50), d_plus_history[:,1])
+plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_plus[1])
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 100000, 50), d_minus_history[:,0])
+plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_minus[0])
+plt.grid()
+plt.show()
+
+plt.plot(np.arange(0, 100000, 50), d_minus_history[:,1])
+plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_minus[1])
+plt.grid()
 plt.show()
 '''
 plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])

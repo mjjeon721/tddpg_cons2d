@@ -7,7 +7,7 @@ from scipy.spatial import KDTree
 
 
 class TDDPGAgent:
-    def __init__(self, state_dim, action_dim, actor_lr=1e-6, critic_lr=0.001, \
+    def __init__(self, state_dim, action_dim, actor_lr=1e-3, critic_lr=0.001, \
                  eta=1, d_max=1, tau=0.001, max_memory_size=10000):
         # Parameters
         self.state_dim = state_dim
@@ -45,7 +45,8 @@ class TDDPGAgent:
     def random_action(self):
         return self.d_max * np.random.rand(self.action_dim)
 
-    def update(self, current_state, current_action, current_reward, current_utility):
+    def update(self, current_state, current_action, current_reward, current_utility, update_count):
+        self.actor_lr = 1e-3 * 1 / (1 + 0.1 * (update_count // 10000))
         # self.actor_optim.lr = 0.001 * 1 / (1 + 0.1 * (update_count // 1000))
         # self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
         #states, actions, rewards, utilities = self.history.sample(100)
@@ -53,19 +54,27 @@ class TDDPGAgent:
         #U = self.history.history['utility'].reshape(-1)
         #utilities = utilities.reshape(-1)
         #rewards = rewards.reshape(-1)
-        #dU = np.zeros((actions.shape))
+
         # Policy updates
         # Computing dU
-
+        dU = np.zeros((current_action.shape))
         actions = self.history.history['action']
-        utilities = self.history.history['utility'].reshape(-1)
+        mask = np.all(actions != current_action, axis = 1)
+        actions = actions[mask, :]
+        utilities = self.history.history['utility'].reshape(-1)[mask]
 
         sorted_ix = np.argsort(actions[:,1])
         actions_i = actions[sorted_ix, 1]
         val, ix = find_nearest(actions_i, current_action[1])
 
-        dU = (current_utility - utilities[sorted_ix[ix]])/(current_action[0] - actions[sorted_ix[ix], 0])
+        dU[0] = (current_utility - utilities[sorted_ix[ix]])/(current_action[0] - actions[sorted_ix[ix], 0])
 
+        sorted_ix = np.argsort(actions[:, 0])
+        actions_i = actions[sorted_ix, 0]
+        val, ix = find_nearest(actions_i, current_action[0])
+        dU[1] = (current_utility - utilities[sorted_ix[ix]]) / (current_action[1] - actions[sorted_ix[ix], 1])
+
+        '''
         T = KDTree(self.history.history['action'])
         near_pt = T.query(current_action, 1)
         reward_val = self.history.history['reward'].reshape(-1)[near_pt[1]]
@@ -80,7 +89,6 @@ class TDDPGAgent:
             tmp = np.delete(tmp, near_pt[1], axis=0)
             j += 1
         dr = (current_reward - reward_val) / (current_action - action_val)
-        '''
         for i in range(2):
             sorted_ix = np.argsort(self.history.history['action'][:, i])
             U_i = self.history.history['reward'][sorted_ix]
@@ -99,9 +107,16 @@ class TDDPGAgent:
         #print(dU)
         dU = dU.reshape(1,-1)
         '''
+        if current_state[0] < np.sum(current_action) :
+            dr = dU - current_state[2]
+        elif current_state[0] > np.sum(current_action):
+            dr = dU - current_state[1]
+        else :
+            dr = 0
+
         J_plus, J_minus = self.actor.policy_grad(current_state)
-        d_plus_grad = np.sum(np.matmul(dU, J_plus).reshape(-1, 2), axis=0)
-        d_minus_grad = np.sum(np.matmul(dU, J_minus).reshape(-1, 2), axis=0)
+        d_plus_grad = np.sum(np.matmul(dr, J_plus).reshape(-1, 2), axis=0)
+        d_minus_grad = np.sum(np.matmul(dr, J_minus).reshape(-1, 2), axis=0)
         # self.actor.d_plus = np.clip(self.actor_optim.update(update_count, self.actor.d_plus, d_plus_grad), 0, self.d_max)
         # self.actor.d_minus = np.clip(self.actor_optim.update(update_count, self.actor.d_minus, d_minus_grad), self.actor.d_plus, self.d_max)
         # self.actor.d_plus = np.clip(self.actor.d_plus + self.actor_lr * d_plus_grad, 0, self.d_max)
