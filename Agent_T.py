@@ -45,8 +45,9 @@ class TDDPGAgent:
     def random_action(self):
         return self.d_max * np.random.rand(self.action_dim)
 
-    def update(self, batch_size):
-        # self.actor_optim.lr = 0.001 * 1 / (1 + 0.1 * (update_count // 1000))
+    def update(self, batch_size, update_count):
+        self.actor_lr = 0.001 * 1 / (1 + 0.1 * (update_count // 10000))
+        self.reward_optim.param_groups[0]['lr'] = 0.001 * 1 / (1 + 0.1 * (update_count // 10000))
         # self.critic_optim.param_groups[0]['lr'] = 1e-3 * 1 / (1 + 0.1 * (epoch // 1000))
         states, actions, rewards, utilities = self.history.sample(batch_size)
         #actions = self.history.history['action']

@@ -60,7 +60,7 @@ env = Env([a,b], [r_mean, r_std, r_max], reward_max)
 tic = time.perf_counter()
 
 epoch_size = 100
-num_epoch = 200
+num_epoch = 500
 update_count = 1
 update_count_thresh = 1
 
@@ -133,7 +133,7 @@ for epoch in range(num_epoch) :
 
         if interaction > 500 and (interaction % 20 == 1):
             for grad_update in range(20):
-                agent_tddpg.update(batch_size)
+                agent_tddpg.update(batch_size, update_count_thresh)
                 update_count_thresh += 1
 
         if interaction % 50 == 1:
@@ -174,12 +174,30 @@ for epoch in range(num_epoch) :
 
 d_minus_history = np.vstack(d_minus_history)
 d_plus_history = np.vstack(d_plus_history)
-plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
+#plt.plot(np.arange(d_plus_history.shape[0]), d_minus_history[:,0])
 #plt.ylim(bottom = 0, top = 1)
+#plt.show()
+'''
+plt.plot(np.arange(0, 50000, 50), d_plus_history[:,0])
+plt.plot(np.arange(0, 50000, 50), np.ones(1000) * opt_d_plus[0])
+plt.grid()
 plt.show()
 
+plt.plot(np.arange(0, 50000, 50), d_plus_history[:,1])
+plt.plot(np.arange(0, 50000, 50), np.ones(1000) * opt_d_plus[1])
+plt.grid()
+plt.show()
 
+plt.plot(np.arange(0, 50000, 50), d_minus_history[:,0])
+plt.plot(np.arange(0, 50000, 50), np.ones(1000) * opt_d_minus[0])
+plt.grid()
+plt.show()
 
+plt.plot(np.arange(0, 50000, 50), d_minus_history[:,1])
+plt.plot(np.arange(0, 50000, 50), np.ones(1000) * opt_d_minus[1])
+plt.grid()
+plt.show()
+'''
 '''
 plt.plot(np.arange(0, 49000, 20),d_minus_history[:,0])
 plt.plot(np.arange(0, 49000, 20),opt_d_minus[0] * np.ones(2450))
