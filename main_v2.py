@@ -29,7 +29,7 @@ batch_size = 100
 
 T = 10
 # Renewable parameters
-r_mean = 3 / d_max
+r_mean = 2.5 / d_max
 r_std = 9 / d_max
 r_max = 7.5 / d_max
 
@@ -39,7 +39,7 @@ interaction = 0
 # Model parameters
 # NEM parameters
 
-NEM_param = np.array([[0.15], [0.47]])
+NEM_param = np.array([[0.243], [0.587]])
     #0.5 * np.sort(np.random.rand(200)).reshape(2,-1)
 
 a = np.array([3, 2.7]) / d_max
@@ -171,35 +171,45 @@ d_plus_history = np.vstack(d_plus_history)
 
 plt.plot(np.arange(0, 100000, 50), d_plus_history[:,0])
 plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_plus[0])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^+$')
 plt.grid()
 plt.show()
 
 plt.plot(np.arange(0, 100000, 50), d_plus_history[:,1])
 plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_plus[1])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^+$')
 plt.grid()
 plt.show()
 
 plt.plot(np.arange(0, 100000, 50), d_minus_history[:,0])
 plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_minus[0])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_1^-$')
 plt.grid()
 plt.show()
 
 plt.plot(np.arange(0, 100000, 50), d_minus_history[:,1])
 plt.plot(np.arange(0, 100000, 50), np.ones(2000) * opt_d_minus[1])
+plt.title('Threshold learning trajectory')
+plt.xlabel('Interactions')
+plt.ylabel('$d_2^-$')
 plt.grid()
 plt.show()
 '''
-
-
 nsmoothed_curve_ddpg = np.array([])
 nsmoothed_curve_tddpg = np.array([])
 nsmoothed_curve_opt = np.array([])
 for i in range(num_epoch) :
-    nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-10, 0):i+1]))
+    #nsmoothed_curve_ddpg = np.append(nsmoothed_curve_ddpg, np.mean(DDPG_avg_reward[np.maximum(i-10, 0):i+1]))
     nsmoothed_curve_tddpg = np.append(nsmoothed_curve_tddpg, np.mean(TDDPG_avg_reward[np.maximum(i -10, 0):i + 1]))
-    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i-00, 0):i + 1]))
-plt.plot(np.arange(0, 100000, 100),nsmoothed_curve_tddpg, label = 'TDDPG')
-plt.plot(np.arange(0, 100000, 100),nsmoothed_curve_ddpg, label = 'DDPG')
+    nsmoothed_curve_opt = np.append(nsmoothed_curve_opt, np.mean(OPT_avg_reward[np.maximum(i-10, 0):i + 1]))
+plt.plot(np.arange(0, 100000, 100),nsmoothed_curve_tddpg, label = 'Threshold_learning')
+#plt.plot(np.arange(0, 100000, 100),nsmoothed_curve_ddpg, label = 'DDPG')
 plt.plot(np.arange(0, 100000, 100),nsmoothed_curve_opt, label = 'OPT')
 plt.legend()
 plt.xlabel('Step')
